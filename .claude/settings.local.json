@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(docker ps:*)",
+      "Bash(npx prisma generate:*)",
+      "Bash(npx prisma migrate dev:*)",
+      "Bash(docker network:*)",
+      "Bash(docker service:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker exec:*)",
+      "Bash(npx tsx:*)",
+      "Bash(curl:*)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJjbWtpenU0eTUwMDAwaW4xZXE0dXh2bWFtIiwiZW1haWwiOiJhZG1pbkBkYXNoYm9hcmQuY29tIiwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzY4Njk2MjkyLCJleHAiOjE3Njg2OTcxOTJ9.Ni37vpaDvvYXc8KrEvmwNb1wCNjlWqL2KDL77jpltxo\" __NEW_LINE_08de8858cd2b4fa1__ curl -s http://localhost:3001/api/analytics/dashboard -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}

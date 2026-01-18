@@ -1,0 +1,265 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== AUTENTICACAO ====================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String
+  name          String
+  role          Role      @default(USER)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLogin     DateTime?
+
+  gateways      GatewayConfig[]
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+enum Role {
+  ADMIN
+  USER
+  VIEWER
+}
+
+// ==================== GATEWAYS ====================
+
+model GatewayConfig {
+  id          String      @id @default(cuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gateway     GatewayType
+  apiToken    String
+  isActive    Boolean     @default(true)
+  lastSync    DateTime?
+  syncStatus  SyncStatus  @default(PENDING)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  sales       Sale[]
+  abandons    Abandon[]
+  products    Product[]
+
+  @@unique([userId, gateway])
+  @@map("gateway_configs")
+}
+
+enum GatewayType {
+  BRAIP
+  HOTMART
+  EDUZZ
+  KIWIFY
+  MONETIZZE
+}
+
+enum SyncStatus {
+  PENDING
+  SYNCING
+  COMPLETED
+  ERROR
+}
+
+// ==================== VENDAS ====================
+
+model Sale {
+  id                  String        @id @default(cuid())
+  gatewayConfigId     String
+  gatewayConfig       GatewayConfig @relation(fields: [gatewayConfigId], references: [id], onDelete: Cascade)
+
+  transKey            String
+  productKey          String
+  planKey             String?
+
+  productName         String
+  planName            String?
+
+  transValue          Int
+  transTotalValue     Int
+  transFreight        Int?
+  transFreightType    String?
+
+  transStatus         String
+  transStatusCode     Int
+  paymentType         Int
+  paymentDate         DateTime?
+
+  clientName          String
+  clientEmail         String
+  clientPhone         String?
+  clientDocument      String?
+  clientAddress       String?
+  clientCity          String?
+  clientState         String?
+  clientZipCode       String?
+
+  hasOrderBump        Boolean       @default(false)
+
+  trackingCode        String?
+  shippingCompany     String?
+
+  commissions         Json?
+  commissionsRelease  DateTime?
+
+  items               SaleItem[]
+
+  transCreateDate     DateTime
+  transUpdateDate     DateTime
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@unique([gatewayConfigId, transKey])
+  @@index([transStatusCode])
+  @@index([transCreateDate])
+  @@index([productKey])
+  @@map("sales")
+}
+
+model SaleItem {
+  id          String  @id @default(cuid())
+  saleId      String
+  sale        Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  planKey     String
+  planName    String
+  planValue   Int
+  planAmount  Int
+  productKey  String
+  productType Int
+  isMain      Boolean @default(false)
+
+  @@map("sale_items")
+}
+
+// ==================== ABANDONOS ====================
+
+model Abandon {
+  id              String        @id @default(cuid())
+  gatewayConfigId String
+  gatewayConfig   GatewayConfig @relation(fields: [gatewayConfigId], references: [id], onDelete: Cascade)
+
+  abandonKey      String?
+  productKey      String
+  productName     String
+  planKey         String?
+  planName        String?
+  planAmount      Int?
+
+  clientName      String?
+  clientEmail     String?
+  clientPhone     String?
+  clientDocument  String?
+  clientAddress   String?
+  clientCity      String?
+  clientState     String?
+  clientZipCode   String?
+
+  transCreateDate DateTime
+  transUpdateDate DateTime
+  createdAt       DateTime      @default(now())
+
+  @@unique([gatewayConfigId, abandonKey])
+  @@index([transCreateDate])
+  @@index([productKey])
+  @@map("abandons")
+}
+
+// ==================== PRODUTOS ====================
+
+model Product {
+  id              String        @id @default(cuid())
+  gatewayConfigId String
+  gatewayConfig   GatewayConfig @relation(fields: [gatewayConfigId], references: [id], onDelete: Cascade)
+
+  productHash     String
+  name            String
+  description     String?
+  thumbnail       String?
+
+  totalSales      Int           @default(0)
+  totalRevenue    Int           @default(0)
+  totalAbandons   Int           @default(0)
+  conversionRate  Float         @default(0)
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([gatewayConfigId, productHash])
+  @@map("products")
+}
+
+// ==================== ASSINATURAS ====================
+
+model Subscription {
+  id              String   @id @default(cuid())
+  gatewayConfigId String
+
+  subKey          String
+  subStatus       Int
+  nextCharge      DateTime?
+  nextAttempt     DateTime?
+  attempts        Int      @default(0)
+  value           Int
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([gatewayConfigId, subKey])
+  @@map("subscriptions")
+}
+
+// ==================== LOGS E METRICAS ====================
+
+model SyncLog {
+  id              String     @id @default(cuid())
+  gatewayConfigId String
+
+  startedAt       DateTime   @default(now())
+  finishedAt      DateTime?
+  status          SyncStatus
+  recordsSynced   Int        @default(0)
+  errorMessage    String?
+
+  @@map("sync_logs")
+}
+
+model DailyMetric {
+  id              String   @id @default(cuid())
+  gatewayConfigId String
+  date            DateTime @db.Date
+
+  totalSales      Int      @default(0)
+  approvedSales   Int      @default(0)
+  pendingSales    Int      @default(0)
+  canceledSales   Int      @default(0)
+  chargebacks     Int      @default(0)
+  refunds         Int      @default(0)
+
+  totalRevenue    Int      @default(0)
+  totalAbandons   Int      @default(0)
+
+  conversionRate  Float    @default(0)
+
+  @@unique([gatewayConfigId, date])
+  @@map("daily_metrics")
+}
