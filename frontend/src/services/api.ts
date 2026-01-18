@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_URL = "https://api-dash.utmia.com.br";
 
 export const api = axios.create({
   baseURL: API_URL,

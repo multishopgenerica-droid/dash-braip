@@ -32,7 +32,10 @@
       "Bash(service nscd restart:*)",
       "Bash(resolvectl flush-caches:*)",
       "Bash(NEXT_PUBLIC_API_URL=https://api-dash.utmia.com.br NEXT_PUBLIC_WS_URL=wss://api-dash.utmia.com.br docker build:*)",
-      "Bash(xargs docker logs)"
+      "Bash(xargs docker logs)",
+      "Bash(xargs docker exec sh -c \"grep -r ''''api-dash'''' /app/.next/static 2>/dev/null | head -3 || echo ''''Procurando em outro local...''''\")",
+      "Bash(xargs:*)",
+      "Bash(ls:*)"
     ]
   }
 }
