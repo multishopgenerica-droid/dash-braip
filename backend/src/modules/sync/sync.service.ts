@@ -1,4 +1,4 @@
-import { GatewayConfig, SyncStatus } from '@prisma/client';
+import { GatewayConfig, SyncStatus, Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { decrypt } from '../../shared/utils/crypto';
 import { createGatewayProvider, BraipSale, BraipAbandon, BraipProduct } from '../gateways/providers';
@@ -159,7 +159,7 @@ async function upsertSale(gatewayId: string, sale: BraipSale): Promise<void> {
     hasOrderBump: sale.has_order_bump || false,
     trackingCode: sale.tracking_code || null,
     shippingCompany: sale.shipping_company || null,
-    commissions: sale.commissions || null,
+    commissions: sale.commissions || Prisma.DbNull,
     commissionsRelease: sale.commissions_release ? new Date(sale.commissions_release) : null,
     transCreateDate: new Date(sale.trans_createdate),
     transUpdateDate: new Date(sale.trans_updatedate),

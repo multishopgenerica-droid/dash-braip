@@ -59,7 +59,7 @@ export async function createAiAnalysis(
       description: data.description,
       type: data.type,
       prompt: data.prompt,
-      metadata: data.metadata || {},
+      metadata: data.metadata ? data.metadata as Prisma.InputJsonValue : Prisma.JsonNull,
       status: AiAnalysisStatus.PENDING,
     },
   });

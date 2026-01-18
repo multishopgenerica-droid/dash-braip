@@ -7,8 +7,8 @@ export function getRedis(): Redis {
   if (!redis) {
     redis = new Redis(env.REDIS_URL, {
       maxRetriesPerRequest: 3,
-      retryDelayOnFailover: 100,
       enableReadyCheck: true,
+      retryStrategy: (times) => Math.min(times * 50, 2000),
     });
 
     redis.on('connect', () => {

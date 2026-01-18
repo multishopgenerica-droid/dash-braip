@@ -13,19 +13,15 @@ export interface TokenPair {
 }
 
 export function generateAccessToken(payload: Omit<TokenPayload, 'iat' | 'exp'>): string {
-  const options: SignOptions = {
+  return jwt.sign(payload, env.JWT_ACCESS_SECRET, {
     expiresIn: env.JWT_ACCESS_EXPIRES_IN,
-  };
-
-  return jwt.sign(payload, env.JWT_ACCESS_SECRET, options);
+  } as SignOptions);
 }
 
 export function generateRefreshToken(payload: Omit<TokenPayload, 'iat' | 'exp'>): string {
-  const options: SignOptions = {
+  return jwt.sign(payload, env.JWT_REFRESH_SECRET, {
     expiresIn: env.JWT_REFRESH_EXPIRES_IN,
-  };
-
-  return jwt.sign(payload, env.JWT_REFRESH_SECRET, options);
+  } as SignOptions);
 }
 
 export function generateTokenPair(payload: Omit<TokenPayload, 'iat' | 'exp'>): TokenPair {
