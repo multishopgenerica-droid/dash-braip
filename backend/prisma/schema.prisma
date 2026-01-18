@@ -263,3 +263,42 @@ model DailyMetric {
   @@unique([gatewayConfigId, date])
   @@map("daily_metrics")
 }
+
+// ==================== AI ANALYSIS ====================
+
+model AiAnalysis {
+  id          String           @id @default(cuid())
+  userId      String
+  title       String
+  description String?
+  type        AiAnalysisType
+  prompt      String           @db.Text
+  result      String?          @db.Text
+  status      AiAnalysisStatus @default(PENDING)
+  metadata    Json?
+
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+  @@map("ai_analyses")
+}
+
+enum AiAnalysisType {
+  SALES_TREND
+  PRODUCT_PERFORMANCE
+  CUSTOMER_BEHAVIOR
+  CONVERSION_OPTIMIZATION
+  ABANDONMENT_ANALYSIS
+  REVENUE_FORECAST
+  CUSTOM
+}
+
+enum AiAnalysisStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}

@@ -115,3 +115,28 @@ export interface DashboardMetrics {
     revenueGrowth: number;
   };
 }
+
+export type AiAnalysisType =
+  | "SALES_TREND"
+  | "PRODUCT_PERFORMANCE"
+  | "CUSTOMER_BEHAVIOR"
+  | "CONVERSION_OPTIMIZATION"
+  | "ABANDONMENT_ANALYSIS"
+  | "REVENUE_FORECAST"
+  | "CUSTOM";
+
+export type AiAnalysisStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+
+export interface AiAnalysis {
+  id: string;
+  userId: string;
+  title: string;
+  description?: string;
+  type: AiAnalysisType;
+  prompt: string;
+  result?: string;
+  status: AiAnalysisStatus;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}

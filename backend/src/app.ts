@@ -12,6 +12,7 @@ import { salesRoutes } from './modules/sales';
 import { abandonsRoutes } from './modules/abandons';
 import { productsRoutes } from './modules/products';
 import { analyticsRoutes } from './modules/analytics';
+import { aiAnalysisRoutes } from './modules/ai-analysis';
 
 const app = express();
 
@@ -39,6 +40,7 @@ app.use('/api/sales', salesRoutes);
 app.use('/api/abandons', abandonsRoutes);
 app.use('/api/products', productsRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/ai-analysis', aiAnalysisRoutes);
 
 // Error handling
 app.use(notFoundHandler);

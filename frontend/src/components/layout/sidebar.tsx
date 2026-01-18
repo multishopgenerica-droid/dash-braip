@@ -11,6 +11,7 @@ import {
   Settings,
   Plug,
   LogOut,
+  Brain,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth.store";
@@ -21,6 +22,7 @@ const navigation = [
   { name: "Abandonos", href: "/abandonos", icon: ShoppingBag },
   { name: "Produtos", href: "/produtos", icon: Package },
   { name: "Relatorios", href: "/relatorios", icon: BarChart3 },
+  { name: "IA Analysis", href: "/ia-analysis", icon: Brain },
   { name: "Gateways", href: "/gateways", icon: Plug },
   { name: "Configuracoes", href: "/configuracoes", icon: Settings },
 ];
