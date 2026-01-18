@@ -31,8 +31,15 @@ export class BraipProvider implements PaymentGateway {
       const response = await this.client.get('/api/vendas', {
         params: { page: 1 },
       });
+      console.log('Braip testConnection response:', response.status, response.data?.message || 'OK');
       return response.status === 200;
-    } catch {
+    } catch (error: unknown) {
+      const axiosError = error as { response?: { status?: number; data?: unknown }; message?: string };
+      console.error('Braip testConnection error:', {
+        status: axiosError.response?.status,
+        data: axiosError.response?.data,
+        message: axiosError.message,
+      });
       return false;
     }
   }

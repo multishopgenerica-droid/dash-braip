@@ -54,13 +54,9 @@ export async function createGateway(
     throw new AppError(400, GATEWAY_MESSAGES.ALREADY_EXISTS);
   }
 
-  // Test connection before saving
-  const provider = createGatewayProvider(data.gateway, data.apiToken);
-  const isValid = await provider.testConnection();
-
-  if (!isValid) {
-    throw new AppError(400, GATEWAY_MESSAGES.INVALID_TOKEN);
-  }
+  // Skip connection test - Cloudflare blocks datacenter IPs
+  // TODO: Implement webhook-based validation or request IP whitelist from Braip
+  console.log(`Creating gateway ${data.gateway} - skipping connection test due to Cloudflare restrictions`);
 
   const encryptedToken = encrypt(data.apiToken);
 
