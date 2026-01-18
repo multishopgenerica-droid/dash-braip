@@ -15,7 +15,24 @@
       "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJjbWtpenU0eTUwMDAwaW4xZXE0dXh2bWFtIiwiZW1haWwiOiJhZG1pbkBkYXNoYm9hcmQuY29tIiwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzY4Njk2MjkyLCJleHAiOjE3Njg2OTcxOTJ9.Ni37vpaDvvYXc8KrEvmwNb1wCNjlWqL2KDL77jpltxo\" __NEW_LINE_08de8858cd2b4fa1__ curl -s http://localhost:3001/api/analytics/dashboard -H \"Authorization: Bearer $TOKEN\")",
       "Bash(git init:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git remote add:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(BRAIP_TOKEN=\"eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImp0aSI6IjdlNTMwMmM5MTAxNzMyNGI0YTY0ZDE5NGQ3YjdhNTBhZWJiMzg5MmExMzM5ODZkNDI0M2E2ZjBhNDU2NDBkNGRmOTcwMDEzNWQ3OTUxZTc1In0.eyJhdWQiOiI0Nzc1MyIsImp0aSI6IjdlNTMwMmM5MTAxNzMyNGI0YTY0ZDE5NGQ3YjdhNTBhZWJiMzg5MmExMzM5ODZkNDI0M2E2ZjBhNDU2NDBkNGRmOTcwMDEzNWQ3OTUxZTc1IiwiaWF0IjoxNzY4MTk1ODE2LCJuYmYiOjE3NjgxOTU4MTYsImV4cCI6MTc5OTczMTgxNiwic3ViIjoiNjczODI5NyIsInNjb3BlcyI6W119.ZIVARZSHbpb8d6PD-0g2bsx2kLz8zs9-QAK9EnmanUI-HNOOgWOHGqbCObfdViaDtYe_bj418v1XPPn-un8sy02X-O1Xs9o7dkd-HQLb5ZQS-5OoB9DwR3btMKSnwj5gmc2WLwlMEbddioIhO1mo3J38TNU15WCALTYgQV0bj9P8bbqxKz3FhD0TUcalCN4R9K4b05qMQpFejMywxKBrpRz8RzgDaPOKFQjbM04wDrcInvn4tIQ4wsYTTQFr4veowO-3c0921s6DqWUsSn5eacCH4bMDqTkSwTy3e5EekIc4BSpwtfeOu9ZP0c4LKLqp-wlFBl9yKoM0B-Nhx2V2RqUGi7_rtxJwu5dREvDsGnDqeQ9Iq8lf8sFVxs4hLVR6XyHWAf52YJLeHoXtQ8hnMDjUVNTfWcjoS6sGW_WTTXC7yjuLfycGvnSdQESAK1n8hzCALADGFSckLtxp3wSEJEYex_a06yLH-e1gvppDN24JpB2WegN5WpOrkmA6D_Izw6vT9_2yrY2vvsRmPVFBXQqbz2O1-9mRHtKqlX1XiOvq5oxlIlh6OSPhVmtT9M_UEpRueGnIW5PJNZh_aFHfF95M7fbzH0vvTtb13_YaZZPAqMM6jvf9z6HyB3SS0ULWC6OU4arOjk3h8zqacHxc62YrJsw98vXnnyF0nbtr5tM\" __NEW_LINE_aad17b5fe0184c46__ curl -s \"https://ev.braip.com/api/vendas?page=1\" -H \"Authorization: Bearer $BRAIP_TOKEN\")",
+      "Bash(BRAIP_TOKEN=\"eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImp0aSI6IjdlNTMwMmM5MTAxNzMyNGI0YTY0ZDE5NGQ3YjdhNTBhZWJiMzg5MmExMzM5ODZkNDI0M2E2ZjBhNDU2NDBkNGRmOTcwMDEzNWQ3OTUxZTc1In0.eyJhdWQiOiI0Nzc1MyIsImp0aSI6IjdlNTMwMmM5MTAxNzMyNGI0YTY0ZDE5NGQ3YjdhNTBhZWJiMzg5MmExMzM5ODZkNDI0M2E2ZjBhNDU2NDBkNGRmOTcwMDEzNWQ3OTUxZTc1IiwiaWF0IjoxNzY4MTk1ODE2LCJuYmYiOjE3NjgxOTU4MTYsImV4cCI6MTc5OTczMTgxNiwic3ViIjoiNjczODI5NyIsInNjb3BlcyI6W119.ZIVARZSHbpb8d6PD-0g2bsx2kLz8zs9-QAK9EnmanUI-HNOOgWOHGqbCObfdViaDtYe_bj418v1XPPn-un8sy02X-O1Xs9o7dkd-HQLb5ZQS-5OoB9DwR3btMKSnwj5gmc2WLwlMEbddioIhO1mo3J38TNU15WCALTYgQV0bj9P8bbqxKz3FhD0TUcalCN4R9K4b05qMQpFejMywxKBrpRz8RzgDaPOKFQjbM04wDrcInvn4tIQ4wsYTTQFr4veowO-3c0921s6DqWUsSn5eacCH4bMDqTkSwTy3e5EekIc4BSpwtfeOu9ZP0c4LKLqp-wlFBl9yKoM0B-Nhx2V2RqUGi7_rtxJwu5dREvDsGnDqeQ9Iq8lf8sFVxs4hLVR6XyHWAf52YJLeHoXtQ8hnMDjUVNTfWcjoS6sGW_WTTXC7yjuLfycGvnSdQESAK1n8hzCALADGFSckLtxp3wSEJEYex_a06yLH-e1gvppDN24JpB2WegN5WpOrkmA6D_Izw6vT9_2yrY2vvsRmPVFBXQqbz2O1-9mRHtKqlX1XiOvq5oxlIlh6OSPhVmtT9M_UEpRueGnIW5PJNZh_aFHfF95M7fbzH0vvTtb13_YaZZPAqMM6jvf9z6HyB3SS0ULWC6OU4arOjk3h8zqacHxc62YrJsw98vXnnyF0nbtr5tM\" __NEW_LINE_fcf689253a9adf4d__ curl -s \"https://ev.braip.com/api/vendas?page=1\" -H \"Authorization: Bearer $BRAIP_TOKEN\" -H \"Accept: application/json\" -H \"Content-Type: application/json\" -H \"User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36\")",
+      "Bash(docker build:*)",
+      "Bash(docker stack services:*)",
+      "Bash(docker logs:*)",
+      "Bash(python3:*)",
+      "Bash(host:*)",
+      "Bash(nslookup:*)",
+      "Bash(dig:*)",
+      "Bash(systemctl restart:*)",
+      "Bash(service nscd restart:*)",
+      "Bash(resolvectl flush-caches:*)",
+      "Bash(NEXT_PUBLIC_API_URL=https://api-dash.utmia.com.br NEXT_PUBLIC_WS_URL=wss://api-dash.utmia.com.br docker build:*)",
+      "Bash(xargs docker logs)"
     ]
   }
 }

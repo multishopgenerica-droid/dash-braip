@@ -16,6 +16,9 @@ import { aiAnalysisRoutes } from './modules/ai-analysis';
 
 const app = express();
 
+// Trust proxy (required behind Traefik/nginx)
+app.set('trust proxy', 1);
+
 // Security middlewares
 app.use(helmet());
 app.use(corsMiddleware);
