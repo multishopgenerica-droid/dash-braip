@@ -21,7 +21,9 @@ interface DashboardMetrics {
   revenue: {
     total: number;
     approved: number;
+    pending: number;
     ticketMedio: number;
+    ticketMedioPending: number;
   };
   abandons: {
     total: number;
@@ -83,14 +85,22 @@ export async function getDashboardMetrics(
     prisma.sale.count({ where: { ...where, transStatusCode: SALE_STATUS.DEVOLVIDA } }),
   ]);
 
-  // Revenue
-  const revenueData = await prisma.sale.aggregate({
-    where: { ...where, transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO },
-    _sum: { transTotalValue: true },
-  });
+  // Revenue (approved and pending)
+  const [revenueData, pendingRevenueData] = await Promise.all([
+    prisma.sale.aggregate({
+      where: { ...where, transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO },
+      _sum: { transTotalValue: true },
+    }),
+    prisma.sale.aggregate({
+      where: { ...where, transStatusCode: SALE_STATUS.AGUARDANDO_PAGAMENTO },
+      _sum: { transTotalValue: true },
+    }),
+  ]);
 
   const totalRevenue = revenueData._sum.transTotalValue || 0;
+  const pendingRevenue = pendingRevenueData._sum.transTotalValue || 0;
   const ticketMedio = approvedSales > 0 ? totalRevenue / approvedSales : 0;
+  const ticketMedioPending = pendingSales > 0 ? pendingRevenue / pendingSales : 0;
 
   // Abandons
   const abandonWhere: Prisma.AbandonWhereInput = {
@@ -177,9 +187,11 @@ export async function getDashboardMetrics(
       refunds,
     },
     revenue: {
-      total: totalRevenue,
+      total: totalRevenue + pendingRevenue,
       approved: totalRevenue,
+      pending: pendingRevenue,
       ticketMedio: Math.round(ticketMedio),
+      ticketMedioPending: Math.round(ticketMedioPending),
     },
     abandons: {
       total: totalAbandons,

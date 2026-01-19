@@ -35,6 +35,14 @@ interface ExtractedDates {
   endDate: Date | null;
 }
 
+interface DayOfWeekStats {
+  dayName: string;
+  dayNumber: number;
+  totalSales: number;
+  approvedSales: number;
+  revenue: number;
+}
+
 interface FullContext {
   requestedPeriod: {
     startDate: string;
@@ -51,6 +59,9 @@ interface FullContext {
   topProducts: ProductSale[];
   conversionRate: number;
   ticketMedio: number;
+  dayOfWeekPatterns: DayOfWeekStats[];
+  bestDay: string;
+  worstDay: string;
 }
 
 export class OpenAIService {
@@ -291,6 +302,28 @@ export class OpenAIService {
     }));
   }
 
+  // Calculate day of week patterns
+  private calculateDayOfWeekPatterns(dailySales: DailySale[]): DayOfWeekStats[] {
+    const dayNames = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+    const patterns: DayOfWeekStats[] = dayNames.map((name, index) => ({
+      dayName: name,
+      dayNumber: index,
+      totalSales: 0,
+      approvedSales: 0,
+      revenue: 0,
+    }));
+
+    for (const sale of dailySales) {
+      const date = new Date(sale.date);
+      const dayOfWeek = date.getDay();
+      patterns[dayOfWeek].totalSales += sale.total;
+      patterns[dayOfWeek].approvedSales += sale.approved;
+      patterns[dayOfWeek].revenue += sale.revenue;
+    }
+
+    return patterns;
+  }
+
   // Build full context for AI
   private async buildFullContext(userId: string, query: string): Promise<FullContext> {
     const now = new Date();
@@ -342,6 +375,14 @@ export class OpenAIService {
       ? requestedStats.revenue / requestedStats.approved
       : 0;
 
+    // Calculate day of week patterns
+    const dayOfWeekPatterns = this.calculateDayOfWeekPatterns(dailySales);
+
+    // Find best and worst days
+    const sortedByApproved = [...dayOfWeekPatterns].sort((a, b) => b.approvedSales - a.approvedSales);
+    const bestDay = sortedByApproved[0]?.dayName || 'N/A';
+    const worstDay = sortedByApproved[sortedByApproved.length - 1]?.dayName || 'N/A';
+
     return {
       requestedPeriod: {
         startDate: startDate.toISOString().split('T')[0],
@@ -358,6 +399,9 @@ export class OpenAIService {
       topProducts,
       conversionRate,
       ticketMedio,
+      dayOfWeekPatterns,
+      bestDay,
+      worstDay,
     };
   }
 
@@ -417,6 +461,11 @@ export class OpenAIService {
             .join('\n')
         : '  Nenhum produto vendido no período.';
 
+      // Build day of week patterns string
+      const dayOfWeekText = context.dayOfWeekPatterns
+        .map(d => `  • ${d.dayName}: ${d.totalSales} vendas (${d.approvedSales} aprovadas), ${this.formatCurrency(d.revenue)}`)
+        .join('\n');
+
       const systemPrompt = `Você é um assistente de análise de dados de vendas especializado.
 Você tem acesso aos dados REAIS do banco de dados do usuário.
 IMPORTANTE: Use SOMENTE os dados fornecidos abaixo para responder. NÃO invente números.
@@ -439,6 +488,12 @@ ${dailySalesText}
 
 🏆 TOP PRODUTOS DO PERÍODO:
 ${topProductsText}
+
+📆 PADRÃO POR DIA DA SEMANA (acumulado do período):
+${dayOfWeekText}
+
+  🏆 Melhor dia: ${context.bestDay}
+  ⚠️ Pior dia: ${context.worstDay}
 
 ═══════════════════════════════════════════════════════════════
 📊 DADOS COMPARATIVOS

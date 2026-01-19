@@ -604,9 +604,9 @@ export default function DashboardPage() {
       {/* KPI Cards */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
-          title="Faturamento Total"
-          value={formatCurrency(metrics?.revenue?.total || 0)}
-          subtitle="Vendas aprovadas"
+          title="Faturamento Aprovado"
+          value={formatCurrency(metrics?.revenue?.approved || 0)}
+          subtitle={metrics?.revenue?.pending ? `+ ${formatCurrency(metrics.revenue.pending)} pendente` : undefined}
           icon={DollarSign}
           trend={metrics?.trends?.revenueGrowth}
           variant="success"
@@ -623,7 +623,7 @@ export default function DashboardPage() {
         <KPICard
           title="Vendas Pendentes"
           value={formatNumber(metrics?.sales?.pending || 0)}
-          subtitle="Aguardando pagamento"
+          subtitle={metrics?.revenue?.pending ? formatCurrency(metrics.revenue.pending) : "Aguardando pagamento"}
           icon={Clock}
           variant="warning"
           loading={metricsLoading}

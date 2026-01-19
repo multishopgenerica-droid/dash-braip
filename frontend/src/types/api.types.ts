@@ -100,7 +100,9 @@ export interface DashboardMetrics {
   revenue: {
     total: number;
     approved: number;
+    pending: number;
     ticketMedio: number;
+    ticketMedioPending: number;
   };
   abandons: {
     total: number;

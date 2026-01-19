@@ -80,10 +80,16 @@ export class AIQueryService {
       return 'AI_ANALYSIS';
     }
 
-    // AI Analysis intents
+    // AI Analysis intents - complex questions that need AI thinking
     if (msg.includes('analis') || msg.includes('analise') || msg.includes('insight') ||
         msg.includes('diagnos') || msg.includes('avali') || msg.includes('situacao') ||
-        msg.includes('cenario') || msg.includes('como estou') || msg.includes('como esta')) {
+        msg.includes('cenario') || msg.includes('como estou') || msg.includes('como esta') ||
+        msg.includes('padrao') || msg.includes('tendencia') || msg.includes('previsao') ||
+        msg.includes('por que') || msg.includes('porque') || msg.includes('motivo') ||
+        msg.includes('consegue') || msg.includes('pode me') || msg.includes('explica') ||
+        msg.includes('qual dia') || msg.includes('quais dias') || msg.includes('melhor dia') ||
+        msg.includes('pior dia') || msg.includes('horario') || msg.includes('quando')) {
+      console.log('[AIQuery] Detected complex/analysis query, using AI_ANALYSIS');
       return 'AI_ANALYSIS';
     }
 
