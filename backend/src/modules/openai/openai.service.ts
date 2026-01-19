@@ -9,22 +9,51 @@ interface AnalysisResult {
   error?: string;
 }
 
-interface DashboardContext {
-  salesSummary: {
-    today: { total: number; approved: number; revenue: number };
-    yesterday: { total: number; approved: number; revenue: number };
-    thisWeek: { total: number; approved: number; revenue: number };
-    thisMonth: { total: number; approved: number; revenue: number };
+interface PeriodStats {
+  total: number;
+  approved: number;
+  pending: number;
+  canceled: number;
+  revenue: number;
+}
+
+interface DailySale {
+  date: string;
+  total: number;
+  approved: number;
+  revenue: number;
+}
+
+interface ProductSale {
+  name: string;
+  sales: number;
+  revenue: number;
+}
+
+interface ExtractedDates {
+  startDate: Date | null;
+  endDate: Date | null;
+}
+
+interface FullContext {
+  requestedPeriod: {
+    startDate: string;
+    endDate: string;
+    stats: PeriodStats;
+    dailySales: DailySale[];
   };
-  topProducts: Array<{ name: string; sales: number; revenue: number }>;
-  topAffiliates: Array<{ name: string; sales: number; commission: number }>;
+  comparison: {
+    today: PeriodStats;
+    yesterday: PeriodStats;
+    thisWeek: PeriodStats;
+    thisMonth: PeriodStats;
+  };
+  topProducts: ProductSale[];
   conversionRate: number;
   ticketMedio: number;
 }
 
 export class OpenAIService {
-  private openai: OpenAI | null = null;
-
   private getClient(apiKey: string): OpenAI {
     return new OpenAI({ apiKey });
   }
@@ -76,96 +105,271 @@ export class OpenAIService {
     }
   }
 
-  async getDashboardContext(userId: string): Promise<DashboardContext> {
+  // Extract dates from user query
+  private extractDatesFromQuery(query: string): ExtractedDates {
+    const result: ExtractedDates = { startDate: null, endDate: null };
+
+    console.log('[OpenAI] extractDatesFromQuery - Input:', query);
+
+    // Normalize query
+    const normalizedQuery = query.toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
+    console.log('[OpenAI] Normalized query:', normalizedQuery);
+
+    // Pattern: DD/MM/YYYY or DD-MM-YYYY
+    const datePattern = /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/g;
+    const matches = [...normalizedQuery.matchAll(datePattern)];
+
+    console.log('[OpenAI] Date matches found:', matches.length, matches.map(m => m[0]));
+
+    if (matches.length >= 1) {
+      const [, day1, month1, year1] = matches[0];
+      result.startDate = new Date(parseInt(year1), parseInt(month1) - 1, parseInt(day1), 0, 0, 0);
+      console.log('[OpenAI] Start date parsed:', result.startDate.toISOString());
+    }
+
+    if (matches.length >= 2) {
+      const [, day2, month2, year2] = matches[1];
+      result.endDate = new Date(parseInt(year2), parseInt(month2) - 1, parseInt(day2), 23, 59, 59);
+      console.log('[OpenAI] End date parsed:', result.endDate.toISOString());
+    } else if (result.startDate) {
+      // If only one date, check for keywords
+      if (normalizedQuery.includes('ate') || normalizedQuery.includes('até') ||
+          normalizedQuery.includes('a ') || normalizedQuery.includes('hoje')) {
+        result.endDate = new Date();
+        result.endDate.setHours(23, 59, 59);
+      } else {
+        // Single date = same day
+        result.endDate = new Date(result.startDate);
+        result.endDate.setHours(23, 59, 59);
+      }
+    }
+
+    // Handle relative dates
     const now = new Date();
+
+    if (!result.startDate && !result.endDate) {
+      // Check for relative period keywords
+      if (normalizedQuery.includes('ultimos 7 dias') || normalizedQuery.includes('ultima semana')) {
+        result.startDate = new Date(now);
+        result.startDate.setDate(result.startDate.getDate() - 7);
+        result.startDate.setHours(0, 0, 0, 0);
+        result.endDate = new Date(now);
+        result.endDate.setHours(23, 59, 59);
+      } else if (normalizedQuery.includes('ultimos 30 dias') || normalizedQuery.includes('ultimo mes')) {
+        result.startDate = new Date(now);
+        result.startDate.setDate(result.startDate.getDate() - 30);
+        result.startDate.setHours(0, 0, 0, 0);
+        result.endDate = new Date(now);
+        result.endDate.setHours(23, 59, 59);
+      } else if (normalizedQuery.includes('este mes') || normalizedQuery.includes('mes atual')) {
+        result.startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+        result.endDate = new Date(now);
+        result.endDate.setHours(23, 59, 59);
+      } else if (normalizedQuery.includes('janeiro')) {
+        result.startDate = new Date(now.getFullYear(), 0, 1, 0, 0, 0);
+        result.endDate = new Date(now.getFullYear(), 0, 31, 23, 59, 59);
+      }
+    }
+
+    console.log('[OpenAI] Final extracted dates:', {
+      startDate: result.startDate?.toISOString() || 'null',
+      endDate: result.endDate?.toISOString() || 'null',
+    });
+
+    return result;
+  }
+
+  // Get period stats from database
+  private async getPeriodStats(userId: string, startDate: Date, endDate: Date): Promise<PeriodStats> {
+    const [total, approved, pending, canceled, revenueData] = await Promise.all([
+      prisma.sale.count({
+        where: {
+          gatewayConfig: { userId },
+          transCreateDate: { gte: startDate, lte: endDate },
+        },
+      }),
+      prisma.sale.count({
+        where: {
+          gatewayConfig: { userId },
+          transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO,
+          transCreateDate: { gte: startDate, lte: endDate },
+        },
+      }),
+      prisma.sale.count({
+        where: {
+          gatewayConfig: { userId },
+          transStatusCode: SALE_STATUS.AGUARDANDO_PAGAMENTO,
+          transCreateDate: { gte: startDate, lte: endDate },
+        },
+      }),
+      prisma.sale.count({
+        where: {
+          gatewayConfig: { userId },
+          transStatusCode: SALE_STATUS.CANCELADA,
+          transCreateDate: { gte: startDate, lte: endDate },
+        },
+      }),
+      prisma.sale.aggregate({
+        where: {
+          gatewayConfig: { userId },
+          transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO,
+          transCreateDate: { gte: startDate, lte: endDate },
+        },
+        _sum: { transTotalValue: true },
+      }),
+    ]);
+
+    return {
+      total,
+      approved,
+      pending,
+      canceled,
+      revenue: revenueData._sum.transTotalValue || 0,
+    };
+  }
+
+  // Get daily sales breakdown
+  private async getDailySales(userId: string, startDate: Date, endDate: Date): Promise<DailySale[]> {
+    const sales = await prisma.sale.findMany({
+      where: {
+        gatewayConfig: { userId },
+        transCreateDate: { gte: startDate, lte: endDate },
+      },
+      select: {
+        transCreateDate: true,
+        transStatusCode: true,
+        transTotalValue: true,
+      },
+      orderBy: { transCreateDate: 'asc' },
+    });
+
+    // Group by date
+    const grouped: Record<string, { total: number; approved: number; revenue: number }> = {};
+
+    for (const sale of sales) {
+      const dateKey = sale.transCreateDate.toISOString().split('T')[0];
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = { total: 0, approved: 0, revenue: 0 };
+      }
+      grouped[dateKey].total++;
+      if (sale.transStatusCode === SALE_STATUS.PAGAMENTO_APROVADO) {
+        grouped[dateKey].approved++;
+        grouped[dateKey].revenue += sale.transTotalValue;
+      }
+    }
+
+    return Object.entries(grouped)
+      .map(([date, data]) => ({
+        date,
+        ...data,
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  // Get top products for period
+  private async getTopProducts(userId: string, startDate: Date, endDate: Date): Promise<ProductSale[]> {
+    const products = await prisma.sale.groupBy({
+      by: ['productName'],
+      where: {
+        gatewayConfig: { userId },
+        transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO,
+        transCreateDate: { gte: startDate, lte: endDate },
+      },
+      _count: true,
+      _sum: { transTotalValue: true },
+      orderBy: { _count: { productName: 'desc' } },
+      take: 10,
+    });
+
+    return products.map((p) => ({
+      name: p.productName,
+      sales: p._count,
+      revenue: p._sum.transTotalValue || 0,
+    }));
+  }
+
+  // Build full context for AI
+  private async buildFullContext(userId: string, query: string): Promise<FullContext> {
+    const now = new Date();
+    const extractedDates = this.extractDatesFromQuery(query);
+
+    // Default to current month if no dates extracted
+    const startDate = extractedDates.startDate || new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+    const endDate = extractedDates.endDate || new Date(now);
+    endDate.setHours(23, 59, 59);
+
+    // Calculate comparison periods
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
     const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
     const yesterdayStart = new Date(todayStart);
     yesterdayStart.setDate(yesterdayStart.getDate() - 1);
-    const yesterdayEnd = new Date(todayEnd);
-    yesterdayEnd.setDate(yesterdayEnd.getDate() - 1);
+    const yesterdayEnd = new Date(yesterdayStart);
+    yesterdayEnd.setHours(23, 59, 59);
 
     const weekStart = new Date(todayStart);
-    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    weekStart.setDate(weekStart.getDate() - 7);
 
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
 
-    // Helper to get period stats
-    const getPeriodStats = async (start: Date, end: Date) => {
-      const [total, approved, revenueData] = await Promise.all([
-        prisma.sale.count({
-          where: {
-            gatewayConfig: { userId },
-            transCreateDate: { gte: start, lte: end },
-          },
-        }),
-        prisma.sale.count({
-          where: {
-            gatewayConfig: { userId },
-            transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO,
-            transCreateDate: { gte: start, lte: end },
-          },
-        }),
-        prisma.sale.aggregate({
-          where: {
-            gatewayConfig: { userId },
-            transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO,
-            transCreateDate: { gte: start, lte: end },
-          },
-          _sum: { transTotalValue: true },
-        }),
-      ]);
-      return {
-        total,
-        approved,
-        revenue: revenueData._sum.transTotalValue || 0,
-      };
-    };
-
-    // Get all period stats in parallel
-    const [todayStats, yesterdayStats, weekStats, monthStats, topProducts, topAffiliates] = await Promise.all([
-      getPeriodStats(todayStart, todayEnd),
-      getPeriodStats(yesterdayStart, yesterdayEnd),
-      getPeriodStats(weekStart, todayEnd),
-      getPeriodStats(monthStart, todayEnd),
-      prisma.sale.groupBy({
-        by: ['productName'],
-        where: {
-          gatewayConfig: { userId },
-          transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO,
-          transCreateDate: { gte: monthStart, lte: todayEnd },
-        },
-        _count: true,
-        _sum: { transTotalValue: true },
-        orderBy: { _count: { productName: 'desc' } },
-        take: 5,
-      }),
-      Promise.resolve([]), // Simplified - affiliate grouping is complex
+    // Fetch all data in parallel
+    const [
+      requestedStats,
+      dailySales,
+      topProducts,
+      todayStats,
+      yesterdayStats,
+      weekStats,
+      monthStats,
+    ] = await Promise.all([
+      this.getPeriodStats(userId, startDate, endDate),
+      this.getDailySales(userId, startDate, endDate),
+      this.getTopProducts(userId, startDate, endDate),
+      this.getPeriodStats(userId, todayStart, todayEnd),
+      this.getPeriodStats(userId, yesterdayStart, yesterdayEnd),
+      this.getPeriodStats(userId, weekStart, todayEnd),
+      this.getPeriodStats(userId, monthStart, todayEnd),
     ]);
 
+    const conversionRate = requestedStats.total > 0
+      ? (requestedStats.approved / requestedStats.total) * 100
+      : 0;
+
+    const ticketMedio = requestedStats.approved > 0
+      ? requestedStats.revenue / requestedStats.approved
+      : 0;
+
     return {
-      salesSummary: {
+      requestedPeriod: {
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0],
+        stats: requestedStats,
+        dailySales,
+      },
+      comparison: {
         today: todayStats,
         yesterday: yesterdayStats,
         thisWeek: weekStats,
         thisMonth: monthStats,
       },
-      topProducts: topProducts.map((p) => ({
-        name: p.productName,
-        sales: p._count,
-        revenue: p._sum.transTotalValue || 0,
-      })),
-      topAffiliates: [], // Simplified - affiliate data would need more complex query
-      conversionRate:
-        monthStats.total > 0
-          ? (monthStats.approved / monthStats.total) * 100
-          : 0,
-      ticketMedio:
-        monthStats.approved > 0
-          ? monthStats.revenue / monthStats.approved
-          : 0,
+      topProducts,
+      conversionRate,
+      ticketMedio,
     };
+  }
+
+  // Format currency
+  private formatCurrency(value: number): string {
+    return `R$ ${(value / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+
+  // Format date
+  private formatDate(dateStr: string): string {
+    const [year, month, day] = dateStr.split('-');
+    return `${day}/${month}/${year}`;
   }
 
   async analyzeData(
@@ -173,42 +377,100 @@ export class OpenAIService {
     prompt: string,
     customContext?: string
   ): Promise<AnalysisResult> {
+    console.log('[OpenAI] ========== analyzeData CALLED ==========');
+    console.log('[OpenAI] userId:', userId);
+    console.log('[OpenAI] prompt:', prompt);
+
     const config = await this.getConfig(userId);
+    console.log('[OpenAI] config found:', !!config, 'enabled:', config?.enabled, 'hasKey:', !!config?.apiKey);
 
     if (!config || !config.apiKey || !config.enabled) {
+      console.log('[OpenAI] Returning error - not configured or disabled');
       return { success: false, error: 'OpenAI not configured or disabled' };
     }
 
     try {
       const client = this.getClient(config.apiKey);
 
-      // Get dashboard context
-      const context = await this.getDashboardContext(userId);
+      // Build comprehensive context from database
+      const context = await this.buildFullContext(userId, prompt);
 
-      const systemPrompt = `Você é um assistente de análise de dados de vendas para um dashboard de e-commerce/infoprodutos.
-Você tem acesso aos seguintes dados do negócio:
+      console.log('OpenAI Context:', JSON.stringify({
+        requestedPeriod: context.requestedPeriod.startDate + ' to ' + context.requestedPeriod.endDate,
+        totalSales: context.requestedPeriod.stats.total,
+        approvedSales: context.requestedPeriod.stats.approved,
+        revenue: context.requestedPeriod.stats.revenue,
+        dailySalesCount: context.requestedPeriod.dailySales.length,
+      }));
 
-RESUMO DE VENDAS:
-- Hoje: ${context.salesSummary.today.total} vendas (${context.salesSummary.today.approved} aprovadas), R$ ${(context.salesSummary.today.revenue / 100).toFixed(2)} faturamento
-- Ontem: ${context.salesSummary.yesterday.total} vendas (${context.salesSummary.yesterday.approved} aprovadas), R$ ${(context.salesSummary.yesterday.revenue / 100).toFixed(2)} faturamento
-- Esta semana: ${context.salesSummary.thisWeek.total} vendas (${context.salesSummary.thisWeek.approved} aprovadas), R$ ${(context.salesSummary.thisWeek.revenue / 100).toFixed(2)} faturamento
-- Este mês: ${context.salesSummary.thisMonth.total} vendas (${context.salesSummary.thisMonth.approved} aprovadas), R$ ${(context.salesSummary.thisMonth.revenue / 100).toFixed(2)} faturamento
+      // Build detailed daily sales string
+      const dailySalesText = context.requestedPeriod.dailySales.length > 0
+        ? context.requestedPeriod.dailySales
+            .map(d => `  - ${this.formatDate(d.date)}: ${d.total} vendas (${d.approved} aprovadas), ${this.formatCurrency(d.revenue)}`)
+            .join('\n')
+        : '  Nenhuma venda no período.';
 
-TOP PRODUTOS:
-${context.topProducts.map((p, i) => `${i + 1}. ${p.name}: ${p.sales} vendas, R$ ${(p.revenue / 100).toFixed(2)}`).join('\n')}
+      // Build top products string
+      const topProductsText = context.topProducts.length > 0
+        ? context.topProducts
+            .map((p, i) => `  ${i + 1}. ${p.name}: ${p.sales} vendas, ${this.formatCurrency(p.revenue)}`)
+            .join('\n')
+        : '  Nenhum produto vendido no período.';
 
-TOP AFILIADOS:
-${context.topAffiliates.map((a, i) => `${i + 1}. ${a.name}: ${a.sales} vendas, R$ ${(a.commission / 100).toFixed(2)} comissão`).join('\n')}
+      const systemPrompt = `Você é um assistente de análise de dados de vendas especializado.
+Você tem acesso aos dados REAIS do banco de dados do usuário.
+IMPORTANTE: Use SOMENTE os dados fornecidos abaixo para responder. NÃO invente números.
 
-MÉTRICAS:
-- Taxa de conversão: ${context.conversionRate.toFixed(1)}%
-- Ticket médio: R$ ${(context.ticketMedio / 100).toFixed(2)}
+═══════════════════════════════════════════════════════════════
+📊 DADOS DO PERÍODO SOLICITADO: ${this.formatDate(context.requestedPeriod.startDate)} até ${this.formatDate(context.requestedPeriod.endDate)}
+═══════════════════════════════════════════════════════════════
 
-${customContext ? `CONTEXTO ADICIONAL:\n${customContext}\n` : ''}
+📈 RESUMO DO PERÍODO:
+  • Total de vendas: ${context.requestedPeriod.stats.total}
+  • Vendas aprovadas: ${context.requestedPeriod.stats.approved}
+  • Vendas pendentes: ${context.requestedPeriod.stats.pending}
+  • Vendas canceladas: ${context.requestedPeriod.stats.canceled}
+  • Faturamento total: ${this.formatCurrency(context.requestedPeriod.stats.revenue)}
+  • Taxa de conversão: ${context.conversionRate.toFixed(1)}%
+  • Ticket médio: ${this.formatCurrency(context.ticketMedio)}
 
-Responda de forma clara e concisa, usando formatação Markdown quando apropriado.
-Sempre que mencionar valores monetários, use o formato R$ X.XXX,XX.
-Forneça insights acionáveis e recomendações quando relevante.`;
+📅 VENDAS DIÁRIAS (${context.requestedPeriod.dailySales.length} dias com vendas):
+${dailySalesText}
+
+🏆 TOP PRODUTOS DO PERÍODO:
+${topProductsText}
+
+═══════════════════════════════════════════════════════════════
+📊 DADOS COMPARATIVOS
+═══════════════════════════════════════════════════════════════
+
+📆 HOJE:
+  • Vendas: ${context.comparison.today.total} (${context.comparison.today.approved} aprovadas)
+  • Faturamento: ${this.formatCurrency(context.comparison.today.revenue)}
+
+📆 ONTEM:
+  • Vendas: ${context.comparison.yesterday.total} (${context.comparison.yesterday.approved} aprovadas)
+  • Faturamento: ${this.formatCurrency(context.comparison.yesterday.revenue)}
+
+📆 ÚLTIMOS 7 DIAS:
+  • Vendas: ${context.comparison.thisWeek.total} (${context.comparison.thisWeek.approved} aprovadas)
+  • Faturamento: ${this.formatCurrency(context.comparison.thisWeek.revenue)}
+
+📆 ESTE MÊS:
+  • Vendas: ${context.comparison.thisMonth.total} (${context.comparison.thisMonth.approved} aprovadas)
+  • Faturamento: ${this.formatCurrency(context.comparison.thisMonth.revenue)}
+
+${customContext ? `\n═══════════════════════════════════════════════════════════════\n📝 CONTEXTO ADICIONAL:\n${customContext}\n` : ''}
+
+═══════════════════════════════════════════════════════════════
+INSTRUÇÕES:
+═══════════════════════════════════════════════════════════════
+1. Responda APENAS com base nos dados acima
+2. Se não houver dados, informe que não há vendas no período
+3. Use valores monetários no formato R$ X.XXX,XX
+4. Seja preciso com os números - não arredonde a menos que faça sentido
+5. Forneça insights e análises quando apropriado
+6. Use formatação markdown para melhor legibilidade`;
 
       const response = await client.chat.completions.create({
         model: config.model || 'gpt-4o-mini',
@@ -216,8 +478,8 @@ Forneça insights acionáveis e recomendações quando relevante.`;
           { role: 'system', content: systemPrompt },
           { role: 'user', content: prompt },
         ],
-        max_tokens: config.maxTokens || 1000,
-        temperature: config.temperature || 0.7,
+        max_tokens: config.maxTokens || 1500,
+        temperature: config.temperature || 0.3, // Lower temperature for more factual responses
       });
 
       const tokensUsed = response.usage?.total_tokens || 0;
@@ -248,7 +510,6 @@ Forneça insights acionáveis e recomendações quando relevante.`;
     const config = await this.getConfig(userId);
 
     if (!config || !config.apiKey || !config.enabled) {
-      // Fallback to simple keyword-based responses
       return this.fallbackResponse(userId, query);
     }
 
@@ -258,93 +519,25 @@ Forneça insights acionáveis e recomendações quando relevante.`;
       return result.analysis;
     }
 
-    // If OpenAI fails, use fallback
     return this.fallbackResponse(userId, query);
   }
 
   private async fallbackResponse(userId: string, query: string): Promise<string> {
-    const lowerQuery = query.toLowerCase();
-    const context = await this.getDashboardContext(userId);
+    const context = await this.buildFullContext(userId, query);
+    const stats = context.requestedPeriod.stats;
 
-    // Simple keyword matching for common queries
-    if (lowerQuery.includes('hoje') || lowerQuery.includes('today')) {
-      const today = context.salesSummary.today;
-      return `📊 *Resumo de Hoje*\n\n` +
-        `• Vendas: ${today.total}\n` +
-        `• Aprovadas: ${today.approved}\n` +
-        `• Faturamento: R$ ${(today.revenue / 100).toFixed(2).replace('.', ',')}`;
-    }
+    return `📊 *Dados do Período*
+${this.formatDate(context.requestedPeriod.startDate)} até ${this.formatDate(context.requestedPeriod.endDate)}
 
-    if (lowerQuery.includes('ontem') || lowerQuery.includes('yesterday')) {
-      const yesterday = context.salesSummary.yesterday;
-      return `📊 *Resumo de Ontem*\n\n` +
-        `• Vendas: ${yesterday.total}\n` +
-        `• Aprovadas: ${yesterday.approved}\n` +
-        `• Faturamento: R$ ${(yesterday.revenue / 100).toFixed(2).replace('.', ',')}`;
-    }
+• Total de vendas: ${stats.total}
+• Aprovadas: ${stats.approved}
+• Pendentes: ${stats.pending}
+• Canceladas: ${stats.canceled}
+• Faturamento: ${this.formatCurrency(stats.revenue)}
+• Conversão: ${context.conversionRate.toFixed(1)}%
+• Ticket médio: ${this.formatCurrency(context.ticketMedio)}
 
-    if (lowerQuery.includes('semana') || lowerQuery.includes('week')) {
-      const week = context.salesSummary.thisWeek;
-      return `📊 *Resumo da Semana*\n\n` +
-        `• Vendas: ${week.total}\n` +
-        `• Aprovadas: ${week.approved}\n` +
-        `• Faturamento: R$ ${(week.revenue / 100).toFixed(2).replace('.', ',')}`;
-    }
-
-    if (lowerQuery.includes('mês') || lowerQuery.includes('mes') || lowerQuery.includes('month')) {
-      const month = context.salesSummary.thisMonth;
-      return `📊 *Resumo do Mês*\n\n` +
-        `• Vendas: ${month.total}\n` +
-        `• Aprovadas: ${month.approved}\n` +
-        `• Faturamento: R$ ${(month.revenue / 100).toFixed(2).replace('.', ',')}\n` +
-        `• Taxa de conversão: ${context.conversionRate.toFixed(1)}%\n` +
-        `• Ticket médio: R$ ${(context.ticketMedio / 100).toFixed(2).replace('.', ',')}`;
-    }
-
-    if (lowerQuery.includes('produto') || lowerQuery.includes('product')) {
-      if (context.topProducts.length === 0) {
-        return '📦 Nenhum produto com vendas no período.';
-      }
-      return `📦 *Top Produtos*\n\n` +
-        context.topProducts.map((p, i) =>
-          `${i + 1}. ${p.name}\n   ${p.sales} vendas - R$ ${(p.revenue / 100).toFixed(2).replace('.', ',')}`
-        ).join('\n\n');
-    }
-
-    if (lowerQuery.includes('afiliado') || lowerQuery.includes('affiliate')) {
-      if (context.topAffiliates.length === 0) {
-        return '👥 Nenhum afiliado com vendas no período.';
-      }
-      return `👥 *Top Afiliados*\n\n` +
-        context.topAffiliates.map((a, i) =>
-          `${i + 1}. ${a.name}\n   ${a.sales} vendas - R$ ${(a.commission / 100).toFixed(2).replace('.', ',')} comissão`
-        ).join('\n\n');
-    }
-
-    if (lowerQuery.includes('comparar') || lowerQuery.includes('compare') || lowerQuery.includes('comparativo')) {
-      const today = context.salesSummary.today;
-      const yesterday = context.salesSummary.yesterday;
-      const diff = yesterday.revenue > 0
-        ? ((today.revenue - yesterday.revenue) / yesterday.revenue * 100).toFixed(1)
-        : 'N/A';
-      return `📈 *Comparativo Hoje vs Ontem*\n\n` +
-        `*Hoje:*\n` +
-        `• Vendas: ${today.total} (${today.approved} aprovadas)\n` +
-        `• Faturamento: R$ ${(today.revenue / 100).toFixed(2).replace('.', ',')}\n\n` +
-        `*Ontem:*\n` +
-        `• Vendas: ${yesterday.total} (${yesterday.approved} aprovadas)\n` +
-        `• Faturamento: R$ ${(yesterday.revenue / 100).toFixed(2).replace('.', ',')}\n\n` +
-        `*Variação:* ${diff}%`;
-    }
-
-    // Default response with summary
-    const month = context.salesSummary.thisMonth;
-    return `📊 *Resumo Geral*\n\n` +
-      `*Este mês:*\n` +
-      `• Vendas: ${month.total} (${month.approved} aprovadas)\n` +
-      `• Faturamento: R$ ${(month.revenue / 100).toFixed(2).replace('.', ',')}\n` +
-      `• Taxa de conversão: ${context.conversionRate.toFixed(1)}%\n\n` +
-      `_Dica: Pergunte sobre "hoje", "ontem", "semana", "produtos", "afiliados" ou "comparativo"._`;
+_Configure a OpenAI nas configurações para análises mais detalhadas._`;
   }
 
   async getUsageStats(userId: string) {

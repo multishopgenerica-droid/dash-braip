@@ -1,6 +1,5 @@
 import { prisma } from '../../config/database';
 import { SALE_STATUS } from '../../shared/constants/status-codes';
-import OpenAI from 'openai';
 import { openAIService } from '../openai/openai.service';
 
 // Intent types
@@ -69,19 +68,17 @@ interface FullAnalyticsData {
 }
 
 export class AIQueryService {
-  private openai: OpenAI | null = null;
-
-  constructor() {
-    if (process.env.OPENAI_API_KEY) {
-      this.openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-      });
-    }
-  }
-
   // Detect intent from user message
   detectIntent(message: string): IntentType {
     const msg = message.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    // Check for date patterns - if user mentions specific dates, use AI analysis
+    const datePattern = /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/g;
+    const hasSpecificDates = datePattern.test(msg);
+    if (hasSpecificDates) {
+      console.log('[AIQuery] Detected specific dates in query, using AI_ANALYSIS');
+      return 'AI_ANALYSIS';
+    }
 
     // AI Analysis intents
     if (msg.includes('analis') || msg.includes('analise') || msg.includes('insight') ||
@@ -245,11 +242,8 @@ export class AIQueryService {
         return this.getDailySummary(userId);
 
       default:
-        // For unknown intents, try AI analysis
-        if (this.openai) {
-          return this.getAIAnalysis(userId, message, 'general');
-        }
-        return this.getUnknownResponse(message);
+        // For unknown intents, always try AI analysis (openAIService has fallback)
+        return this.getAIAnalysis(userId, message, 'general');
     }
   }
 
@@ -481,87 +475,25 @@ export class AIQueryService {
     return { start, end: now };
   }
 
-  // AI Analysis with OpenAI
+  // AI Analysis with OpenAI - Uses the improved openAIService
   private async getAIAnalysis(
     userId: string,
     userMessage: string,
     analysisType: 'analysis' | 'strategy' | 'problems' | 'opportunities' | 'general'
   ): Promise<QueryResult> {
     try {
-      const data = await this.getFullAnalyticsData(userId);
+      console.log('[AIQuery] getAIAnalysis called for:', userMessage);
 
-      // Try to get OpenAI config from database first
-      const openaiConfig = await openAIService.getConfig(userId);
+      // Use the improved openAIService which extracts dates from the query
+      const response = await openAIService.processQueryForBot(userId, userMessage);
 
-      // Check if user has configured OpenAI with their own key
-      if (openaiConfig?.enabled && openaiConfig?.apiKey) {
-        try {
-          const client = new OpenAI({ apiKey: openaiConfig.apiKey });
+      console.log('[AIQuery] OpenAI response received, length:', response.length);
 
-          const systemPrompt = this.getSystemPrompt(analysisType);
-          const userPrompt = this.getUserPrompt(data, userMessage, analysisType);
-
-          const completion = await client.chat.completions.create({
-            model: openaiConfig.model || 'gpt-4o-mini',
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userPrompt },
-            ],
-            max_tokens: openaiConfig.maxTokens || 1000,
-            temperature: openaiConfig.temperature || 0.7,
-          });
-
-          const tokensUsed = completion.usage?.total_tokens || 0;
-
-          // Update usage stats
-          await prisma.openAIConfig.update({
-            where: { userId },
-            data: {
-              totalTokensUsed: { increment: tokensUsed },
-              totalRequests: { increment: 1 },
-              lastUsedAt: new Date(),
-            },
-          });
-
-          const response = completion.choices[0]?.message?.content || 'Não foi possível gerar a análise.';
-
-          return {
-            intent: 'AI_ANALYSIS',
-            data: data as unknown as Record<string, unknown>,
-            response,
-          };
-        } catch (error) {
-          console.error('User OpenAI API error:', error);
-          // Fall through to fallback
-        }
-      }
-
-      // Fallback: Use environment variable if available
-      if (this.openai) {
-        const systemPrompt = this.getSystemPrompt(analysisType);
-        const userPrompt = this.getUserPrompt(data, userMessage, analysisType);
-
-        const completion = await this.openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          max_tokens: 1000,
-          temperature: 0.7,
-        });
-
-        const response = completion.choices[0]?.message?.content || 'Não foi possível gerar a análise.';
-
-        return {
-          intent: 'AI_ANALYSIS',
-          data: data as unknown as Record<string, unknown>,
-          response,
-        };
-      }
-
-      // No OpenAI available, use fallback analysis
-      return this.getFallbackAnalysis(data, analysisType);
+      return {
+        intent: 'AI_ANALYSIS',
+        data: { analysisType },
+        response,
+      };
     } catch (error) {
       console.error('OpenAI API error:', error);
       const data = await this.getFullAnalyticsData(userId);
