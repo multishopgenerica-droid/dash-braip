@@ -190,3 +190,21 @@ export async function getSalesHeatmap(
     next(error);
   }
 }
+
+export async function getAllProducts(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const gatewayId = req.query.gatewayId as string | undefined;
+    const data = await analyticsService.getAllProducts(req.user!.id, gatewayId);
+
+    res.json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    next(error);
+  }
+}

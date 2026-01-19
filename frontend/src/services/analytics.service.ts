@@ -203,4 +203,11 @@ export const analyticsService = {
     const response = await api.get("/api/analytics/heatmap", { params });
     return response.data.data;
   },
+
+  async getAllProducts(filters?: AnalyticsFilter): Promise<SalesByProduct[]> {
+    const params: Record<string, string> = {};
+    if (filters?.gatewayId) params.gatewayId = filters.gatewayId;
+    const response = await api.get("/api/analytics/all-products", { params });
+    return response.data.data;
+  },
 };

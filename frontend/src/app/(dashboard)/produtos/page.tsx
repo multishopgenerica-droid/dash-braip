@@ -32,8 +32,8 @@ export default function ProdutosPage() {
   const [search, setSearch] = useState("");
 
   const { data: products, isLoading } = useQuery({
-    queryKey: ["products-analytics"],
-    queryFn: () => analyticsService.getSalesByProduct(),
+    queryKey: ["all-products"],
+    queryFn: () => analyticsService.getAllProducts(),
   });
 
   const filteredProducts = products?.filter((p) =>

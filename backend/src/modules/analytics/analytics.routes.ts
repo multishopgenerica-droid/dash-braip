@@ -18,5 +18,6 @@ router.get('/sales-by-source', analyticsController.getSalesBySource);
 router.get('/products-plans', analyticsController.getProductsPlans);
 router.get('/heatmap', analyticsController.getSalesHeatmap);
 router.get('/full', analyticsController.getFullDashboard);
+router.get('/all-products', analyticsController.getAllProducts);
 
 export default router;

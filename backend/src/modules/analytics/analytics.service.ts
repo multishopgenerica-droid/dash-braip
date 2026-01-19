@@ -662,3 +662,50 @@ export async function getFullDashboard(
     funnel,
   };
 }
+
+// ==================== ALL PRODUCTS ====================
+
+export async function getAllProducts(
+  userId: string,
+  gatewayId?: string
+): Promise<unknown[]> {
+  const where: Prisma.ProductWhereInput = {
+    gatewayConfig: { userId },
+  };
+
+  if (gatewayId) {
+    where.gatewayConfigId = gatewayId;
+  }
+
+  // Get all products from the products table
+  const products = await prisma.product.findMany({
+    where,
+    orderBy: { totalSales: 'desc' },
+  });
+
+  // Get sales count for each product from sales table
+  const salesByProduct = await prisma.sale.groupBy({
+    by: ['productKey'],
+    where: {
+      gatewayConfig: { userId },
+      ...(gatewayId && { gatewayConfigId: gatewayId }),
+    },
+    _count: true,
+    _sum: { transTotalValue: true },
+  });
+
+  // Create a map for quick lookup
+  const salesMap = new Map(
+    salesByProduct.map(s => [s.productKey, { count: s._count, revenue: s._sum.transTotalValue || 0 }])
+  );
+
+  // Merge products with sales data
+  return products.map(product => ({
+    productKey: product.productHash,
+    productName: product.name,
+    description: product.description,
+    thumbnail: product.thumbnail,
+    _count: salesMap.get(product.productHash)?.count || 0,
+    _sum: { transTotalValue: salesMap.get(product.productHash)?.revenue || 0 },
+  }));
+}
