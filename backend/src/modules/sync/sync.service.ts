@@ -3,6 +3,8 @@ import { prisma } from '../../config/database';
 import { decrypt } from '../../shared/utils/crypto';
 import { createGatewayProvider, BraipSale, BraipAbandon, BraipProduct } from '../gateways/providers';
 
+const BRAIP_PROXY_URL = process.env.BRAIP_PROXY_URL;
+
 export interface SyncResult {
   success: boolean;
   salesSynced: number;
@@ -44,7 +46,10 @@ export async function syncGateway(gatewayId: string): Promise<SyncResult> {
 
   try {
     const decryptedToken = decrypt(gateway.apiToken);
-    const provider = createGatewayProvider(gateway.gateway, decryptedToken);
+    const provider = createGatewayProvider(gateway.gateway, {
+      apiToken: decryptedToken,
+      proxyUrl: BRAIP_PROXY_URL,
+    });
 
     // Sync sales
     try {
@@ -75,7 +80,7 @@ export async function syncGateway(gatewayId: string): Promise<SyncResult> {
       result.errors.push(`Abandons sync error: ${message}`);
     }
 
-    // Sync products
+    // Sync products from API
     try {
       const products = await provider.fetchProducts();
 
@@ -86,6 +91,39 @@ export async function syncGateway(gatewayId: string): Promise<SyncResult> {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       result.errors.push(`Products sync error: ${message}`);
+    }
+
+    // Also extract products from sales and abandons to ensure all products are captured
+    try {
+      const productsFromData = await syncProductsFromSalesAndAbandons(gatewayId);
+      result.productsSynced += productsFromData;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      result.errors.push(`Products from data sync error: ${message}`);
+    }
+
+    // Sync plans from sales data
+    try {
+      await syncPlansFromSales(gatewayId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      result.errors.push(`Plans sync error: ${message}`);
+    }
+
+    // Sync affiliates from sales data
+    try {
+      await syncAffiliatesFromSales(gatewayId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      result.errors.push(`Affiliates sync error: ${message}`);
+    }
+
+    // Update product stats
+    try {
+      await updateProductStats(gatewayId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      result.errors.push(`Product stats error: ${message}`);
     }
 
     // Update gateway status
@@ -133,34 +171,35 @@ export async function syncGateway(gatewayId: string): Promise<SyncResult> {
 }
 
 async function upsertSale(gatewayId: string, sale: BraipSale): Promise<void> {
+  // Note: Braip API returns values already in cents (e.g., 9999 = R$ 99.99)
   const data = {
     gatewayConfigId: gatewayId,
     transKey: sale.trans_key,
-    productKey: sale.prod_key,
+    productKey: sale.product_key,
     planKey: sale.plan_key || null,
-    productName: sale.prod_name,
+    productName: sale.product_name,
     planName: sale.plan_name || null,
-    transValue: Math.round(sale.trans_value * 100),
-    transTotalValue: Math.round(sale.trans_total_value * 100),
-    transFreight: sale.trans_freight ? Math.round(sale.trans_freight * 100) : null,
+    transValue: sale.trans_value,
+    transTotalValue: sale.trans_total_value,
+    transFreight: sale.trans_freight || null,
     transFreightType: sale.trans_freight_type || null,
     transStatus: sale.trans_status,
     transStatusCode: sale.trans_status_code,
     paymentType: sale.trans_payment,
     paymentDate: sale.trans_payment_date ? new Date(sale.trans_payment_date) : null,
-    clientName: sale.cli_name,
-    clientEmail: sale.cli_email,
-    clientPhone: sale.cli_cel || null,
-    clientDocument: sale.cli_document || null,
-    clientAddress: sale.cli_address || null,
-    clientCity: sale.cli_address_city || null,
-    clientState: sale.cli_address_state || null,
-    clientZipCode: sale.cli_address_zipcode || null,
-    hasOrderBump: sale.has_order_bump || false,
+    clientName: sale.client_name,
+    clientEmail: sale.client_email,
+    clientPhone: sale.client_cel || null,
+    clientDocument: sale.client_documment || null,
+    clientAddress: sale.client_address || null,
+    clientCity: sale.client_address_city || null,
+    clientState: sale.client_address_state || null,
+    clientZipCode: sale.client_zip_code || null,
+    hasOrderBump: sale.have_order_bump === 1,
     trackingCode: sale.tracking_code || null,
     shippingCompany: sale.shipping_company || null,
     commissions: sale.commissions || Prisma.DbNull,
-    commissionsRelease: sale.commissions_release ? new Date(sale.commissions_release) : null,
+    commissionsRelease: sale.commissions_release_date ? new Date(sale.commissions_release_date) : null,
     transCreateDate: new Date(sale.trans_createdate),
     transUpdateDate: new Date(sale.trans_updatedate),
   };
@@ -175,60 +214,36 @@ async function upsertSale(gatewayId: string, sale: BraipSale): Promise<void> {
     create: data,
     update: data,
   });
-
-  // Upsert sale items if present
-  if (sale.items && sale.items.length > 0) {
-    const saleRecord = await prisma.sale.findUnique({
-      where: {
-        gatewayConfigId_transKey: {
-          gatewayConfigId: gatewayId,
-          transKey: sale.trans_key,
-        },
-      },
-    });
-
-    if (saleRecord) {
-      // Delete existing items and recreate
-      await prisma.saleItem.deleteMany({
-        where: { saleId: saleRecord.id },
-      });
-
-      await prisma.saleItem.createMany({
-        data: sale.items.map((item) => ({
-          saleId: saleRecord.id,
-          planKey: item.plan_key,
-          planName: item.plan_name,
-          planValue: Math.round(item.plan_value * 100),
-          planAmount: item.plan_amount,
-          productKey: item.prod_key,
-          productType: item.prod_type,
-          isMain: item.is_main,
-        })),
-      });
-    }
-  }
 }
 
 async function upsertAbandon(gatewayId: string, abandon: BraipAbandon): Promise<void> {
-  const abandonKey = abandon.id || `${abandon.prod_key}_${abandon.cli_email}_${abandon.trans_createdate}`;
+  // Braip API returns fields with these names (according to API docs):
+  // product_key, product_name, plan_key, plan_name, plan_amount
+  // client_name, client_email, client_cel, client_documment
+  // trans_createdate, trans_updatedate
+  const productKey = abandon.product_key || abandon.prod_key || 'unknown';
+  const clientEmail = abandon.client_email || abandon.cli_email;
+  const transCreateDate = abandon.trans_createdate;
+
+  const abandonKey = abandon.id || `${productKey}_${clientEmail || 'noemail'}_${transCreateDate}`;
 
   const data = {
     gatewayConfigId: gatewayId,
     abandonKey,
-    productKey: abandon.prod_key,
-    productName: abandon.prod_name,
+    productKey: productKey,
+    productName: abandon.product_name || abandon.prod_name || 'Produto não identificado',
     planKey: abandon.plan_key || null,
     planName: abandon.plan_name || null,
-    planAmount: abandon.plan_amount || null,
-    clientName: abandon.cli_name || null,
-    clientEmail: abandon.cli_email || null,
-    clientPhone: abandon.cli_cel || null,
-    clientDocument: abandon.cli_document || null,
-    clientAddress: abandon.cli_address || null,
-    clientCity: abandon.cli_address_city || null,
-    clientState: abandon.cli_address_state || null,
-    clientZipCode: abandon.cli_address_zipcode || null,
-    transCreateDate: new Date(abandon.trans_createdate),
+    planAmount: abandon.plan_amount ? Number(abandon.plan_amount) : null,
+    clientName: abandon.client_name || abandon.cli_name || null,
+    clientEmail: clientEmail || null,
+    clientPhone: abandon.client_cel || abandon.cli_cel || null,
+    clientDocument: abandon.client_documment || abandon.cli_document || null,
+    clientAddress: abandon.client_address || abandon.cli_address || null,
+    clientCity: abandon.client_address_city || abandon.cli_address_city || null,
+    clientState: abandon.client_address_state || abandon.cli_address_state || null,
+    clientZipCode: abandon.client_zip_code || abandon.cli_address_zipcode || null,
+    transCreateDate: new Date(transCreateDate),
     transUpdateDate: new Date(abandon.trans_updatedate),
   };
 
@@ -247,22 +262,244 @@ async function upsertAbandon(gatewayId: string, abandon: BraipAbandon): Promise<
 async function upsertProduct(gatewayId: string, product: BraipProduct): Promise<void> {
   const data = {
     gatewayConfigId: gatewayId,
-    productHash: product.prod_hash,
-    name: product.prod_name,
-    description: product.prod_description || null,
-    thumbnail: product.prod_thumbnail || null,
+    productHash: product.product_hash,
+    name: product.name,
+    description: product.description || null,
+    thumbnail: product.thumbnail || null,
   };
 
   await prisma.product.upsert({
     where: {
       gatewayConfigId_productHash: {
         gatewayConfigId: gatewayId,
-        productHash: product.prod_hash,
+        productHash: product.product_hash,
       },
     },
     create: data,
     update: data,
   });
+}
+
+async function syncPlansFromSales(gatewayId: string): Promise<void> {
+  // Get all products for this gateway
+  const products = await prisma.product.findMany({
+    where: { gatewayConfigId: gatewayId },
+    select: { id: true, productHash: true },
+  });
+
+  const productMap = new Map(products.map(p => [p.productHash, p.id]));
+
+  // Extract unique plans from sales with their stats
+  const planStats = await prisma.sale.groupBy({
+    by: ['productKey', 'planKey', 'planName'],
+    where: {
+      gatewayConfigId: gatewayId,
+      planKey: { not: null },
+    },
+    _count: { id: true },
+  });
+
+  // Get approved sales stats
+  const approvedStats = await prisma.sale.groupBy({
+    by: ['productKey', 'planKey'],
+    where: {
+      gatewayConfigId: gatewayId,
+      planKey: { not: null },
+      transStatus: { in: ['Aprovado', 'Pagamento Aprovado'] },
+    },
+    _count: { id: true },
+    _sum: { transValue: true },
+  });
+
+  // Create a map of approved stats
+  const approvedMap = new Map(
+    approvedStats.map(s => [
+      `${s.productKey}_${s.planKey}`,
+      { count: s._count.id, revenue: s._sum.transValue || 0 },
+    ])
+  );
+
+  // Upsert each plan
+  for (const stat of planStats) {
+    if (!stat.planKey || !stat.planName) continue;
+
+    const productId = productMap.get(stat.productKey);
+    if (!productId) continue;
+
+    const approvedKey = `${stat.productKey}_${stat.planKey}`;
+    const approved = approvedMap.get(approvedKey) || { count: 0, revenue: 0 };
+
+    await prisma.plan.upsert({
+      where: {
+        productId_planKey: {
+          productId,
+          planKey: stat.planKey,
+        },
+      },
+      create: {
+        productId,
+        planKey: stat.planKey,
+        planName: stat.planName,
+        totalSales: approved.count,
+        totalRevenue: approved.revenue,
+      },
+      update: {
+        planName: stat.planName,
+        totalSales: approved.count,
+        totalRevenue: approved.revenue,
+      },
+    });
+  }
+}
+
+async function syncAffiliatesFromSales(gatewayId: string): Promise<void> {
+  // Use raw SQL to extract affiliates from JSON commissions
+  await prisma.$executeRaw`
+    INSERT INTO affiliates (id, "gatewayConfigId", "affiliateHash", name, email, phone, document, "totalSales", "totalRevenue", "totalCommission", "updatedAt")
+    SELECT
+      'aff_' || MD5(s."gatewayConfigId" || '_' || (elem->>'affiliate_hash')) as id,
+      s."gatewayConfigId",
+      elem->>'affiliate_hash' as "affiliateHash",
+      MAX(elem->>'name') as name,
+      MAX(elem->>'email') as email,
+      MAX(elem->>'phone') as phone,
+      MAX(elem->>'document') as document,
+      COUNT(*) FILTER (WHERE s."transStatus" IN ('Aprovado', 'Pagamento Aprovado')) as "totalSales",
+      COALESCE(SUM(s."transValue") FILTER (WHERE s."transStatus" IN ('Aprovado', 'Pagamento Aprovado')), 0) as "totalRevenue",
+      COALESCE(SUM((elem->>'value')::int) FILTER (WHERE s."transStatus" IN ('Aprovado', 'Pagamento Aprovado')), 0) as "totalCommission",
+      now() as "updatedAt"
+    FROM sales s,
+    LATERAL jsonb_array_elements(s.commissions) elem
+    WHERE s."gatewayConfigId" = ${gatewayId}
+      AND elem->>'type' = 'Afiliado'
+      AND elem->>'affiliate_hash' IS NOT NULL
+    GROUP BY s."gatewayConfigId", elem->>'affiliate_hash'
+    ON CONFLICT ("gatewayConfigId", "affiliateHash") DO UPDATE SET
+      name = EXCLUDED.name,
+      email = EXCLUDED.email,
+      phone = EXCLUDED.phone,
+      document = EXCLUDED.document,
+      "totalSales" = EXCLUDED."totalSales",
+      "totalRevenue" = EXCLUDED."totalRevenue",
+      "totalCommission" = EXCLUDED."totalCommission",
+      "updatedAt" = now()
+  `;
+}
+
+async function updateProductStats(gatewayId: string): Promise<void> {
+  // Update product sales stats
+  await prisma.$executeRaw`
+    UPDATE products p
+    SET
+      "totalSales" = sub.total_sales,
+      "totalRevenue" = sub.total_revenue,
+      "updatedAt" = now()
+    FROM (
+      SELECT
+        s."productKey",
+        COUNT(*) FILTER (WHERE s."transStatus" IN ('Aprovado', 'Pagamento Aprovado')) as total_sales,
+        COALESCE(SUM(s."transValue") FILTER (WHERE s."transStatus" IN ('Aprovado', 'Pagamento Aprovado')), 0) as total_revenue
+      FROM sales s
+      WHERE s."gatewayConfigId" = ${gatewayId}
+      GROUP BY s."productKey"
+    ) sub
+    WHERE p."productHash" = sub."productKey"
+      AND p."gatewayConfigId" = ${gatewayId}
+  `;
+
+  // Update abandon stats
+  await prisma.$executeRaw`
+    UPDATE products p
+    SET
+      "totalAbandons" = sub.total_abandons
+    FROM (
+      SELECT
+        a."productKey",
+        COUNT(*) as total_abandons
+      FROM abandons a
+      WHERE a."gatewayConfigId" = ${gatewayId}
+      GROUP BY a."productKey"
+    ) sub
+    WHERE p."productHash" = sub."productKey"
+      AND p."gatewayConfigId" = ${gatewayId}
+  `;
+
+  // Update conversion rate
+  await prisma.$executeRaw`
+    UPDATE products
+    SET "conversionRate" =
+      CASE
+        WHEN ("totalSales" + "totalAbandons") > 0
+        THEN ("totalSales"::float / ("totalSales" + "totalAbandons") * 100)
+        ELSE 0
+      END
+    WHERE "gatewayConfigId" = ${gatewayId}
+  `;
+}
+
+async function syncProductsFromSalesAndAbandons(gatewayId: string): Promise<number> {
+  let count = 0;
+
+  // Extract unique products from sales
+  const salesProducts = await prisma.sale.findMany({
+    where: { gatewayConfigId: gatewayId },
+    select: {
+      productKey: true,
+      productName: true,
+    },
+    distinct: ['productKey'],
+  });
+
+  // Extract unique products from abandons
+  const abandonProducts = await prisma.abandon.findMany({
+    where: { gatewayConfigId: gatewayId },
+    select: {
+      productKey: true,
+      productName: true,
+    },
+    distinct: ['productKey'],
+  });
+
+  // Combine and deduplicate
+  const productMap = new Map<string, string>();
+
+  for (const sale of salesProducts) {
+    if (sale.productKey && !productMap.has(sale.productKey)) {
+      productMap.set(sale.productKey, sale.productName);
+    }
+  }
+
+  for (const abandon of abandonProducts) {
+    if (abandon.productKey && !productMap.has(abandon.productKey)) {
+      productMap.set(abandon.productKey, abandon.productName);
+    }
+  }
+
+  // Upsert each product
+  for (const [productHash, name] of productMap) {
+    // Check if product already exists
+    const existing = await prisma.product.findUnique({
+      where: {
+        gatewayConfigId_productHash: {
+          gatewayConfigId: gatewayId,
+          productHash,
+        },
+      },
+    });
+
+    if (!existing) {
+      await prisma.product.create({
+        data: {
+          gatewayConfigId: gatewayId,
+          productHash,
+          name,
+        },
+      });
+      count++;
+    }
+  }
+
+  return count;
 }
 
 export async function syncAllActiveGateways(): Promise<void> {

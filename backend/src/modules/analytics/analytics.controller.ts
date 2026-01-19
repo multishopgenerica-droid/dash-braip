@@ -8,7 +8,10 @@ export async function getDashboard(
 ): Promise<void> {
   try {
     const gatewayId = req.query.gatewayId as string | undefined;
-    const data = await analyticsService.getDashboardMetrics(req.user!.id, gatewayId);
+    const startDate = req.query.startDate as string | undefined;
+    const endDate = req.query.endDate as string | undefined;
+    const productKey = req.query.productKey as string | undefined;
+    const data = await analyticsService.getDashboardMetrics(req.user!.id, gatewayId, { startDate, endDate, productKey });
 
     res.json({
       success: true,
@@ -82,6 +85,102 @@ export async function getRealtime(
   try {
     const gatewayId = req.query.gatewayId as string | undefined;
     const data = await analyticsService.getRealtimeMetrics(req.user!.id, gatewayId);
+
+    res.json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getAffiliates(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const gatewayId = req.query.gatewayId as string | undefined;
+    const startDate = req.query.startDate as string | undefined;
+    const endDate = req.query.endDate as string | undefined;
+    const data = await analyticsService.getAffiliateStats(req.user!.id, gatewayId, { startDate, endDate });
+
+    res.json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getSalesBySource(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const gatewayId = req.query.gatewayId as string | undefined;
+    const startDate = req.query.startDate as string | undefined;
+    const endDate = req.query.endDate as string | undefined;
+    const data = await analyticsService.getSalesBySource(req.user!.id, gatewayId, { startDate, endDate });
+
+    res.json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getProductsPlans(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const gatewayId = req.query.gatewayId as string | undefined;
+    const data = await analyticsService.getProductsWithPlans(req.user!.id, gatewayId);
+
+    res.json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getFullDashboard(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const gatewayId = req.query.gatewayId as string | undefined;
+    const data = await analyticsService.getFullDashboard(req.user!.id, gatewayId);
+
+    res.json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getSalesHeatmap(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const gatewayId = req.query.gatewayId as string | undefined;
+    const startDate = req.query.startDate as string | undefined;
+    const endDate = req.query.endDate as string | undefined;
+    const data = await analyticsService.getSalesHeatmap(req.user!.id, gatewayId, { startDate, endDate });
 
     res.json({
       success: true,

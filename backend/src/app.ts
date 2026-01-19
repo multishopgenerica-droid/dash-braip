@@ -13,6 +13,9 @@ import { abandonsRoutes } from './modules/abandons';
 import { productsRoutes } from './modules/products';
 import { analyticsRoutes } from './modules/analytics';
 import { aiAnalysisRoutes } from './modules/ai-analysis';
+import { webhookRoutes } from './modules/webhooks';
+import { whatsAppRoutes } from './modules/whatsapp';
+import { telegramRoutes } from './modules/telegram';
 
 const app = express();
 
@@ -26,6 +29,9 @@ app.use(corsMiddleware);
 // Body parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Webhook routes (public, no rate limiting)
+app.use('/webhooks', webhookRoutes);
 
 // Rate limiting
 app.use('/api', apiLimiter);
@@ -44,6 +50,8 @@ app.use('/api/abandons', abandonsRoutes);
 app.use('/api/products', productsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/ai-analysis', aiAnalysisRoutes);
+app.use('/api/whatsapp', whatsAppRoutes);
+app.use('/api/telegram', telegramRoutes);
 
 // Error handling
 app.use(notFoundHandler);

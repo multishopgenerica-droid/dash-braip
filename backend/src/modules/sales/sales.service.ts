@@ -3,8 +3,17 @@ import { prisma } from '../../config/database';
 import { getPaginationParams, createPaginatedResult, PaginatedResult } from '../../shared/utils/pagination';
 import { parseDate, getDateRangeFromPeriod, startOfDay, endOfDay } from '../../shared/utils/date';
 import { AppError } from '../../shared/middlewares/error.middleware';
-import { SALE_STATUS } from '../../shared/constants/status-codes';
+import { SALE_STATUS, SALE_STATUS_LABELS, PAYMENT_TYPE_LABELS } from '../../shared/constants/status-codes';
 import { SalesQueryDTO } from './sales.dto';
+
+// Helper function to map sale data with readable labels
+function mapSaleWithLabels(sale: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...sale,
+    paymentTypeName: PAYMENT_TYPE_LABELS[sale.paymentType as number] || `Tipo ${sale.paymentType}`,
+    transStatusName: SALE_STATUS_LABELS[sale.transStatusCode as number] || sale.transStatus,
+  };
+}
 
 export async function listSales(
   userId: string,
@@ -64,7 +73,10 @@ export async function listSales(
     prisma.sale.count({ where }),
   ]);
 
-  return createPaginatedResult(sales, total, page, take);
+  // Map sales with readable labels
+  const salesWithLabels = sales.map(sale => mapSaleWithLabels(sale as unknown as Record<string, unknown>));
+
+  return createPaginatedResult(salesWithLabels, total, page, take);
 }
 
 export async function getSaleById(userId: string, saleId: string): Promise<unknown> {
@@ -85,7 +97,7 @@ export async function getSaleById(userId: string, saleId: string): Promise<unkno
     throw new AppError(404, 'Venda nao encontrada');
   }
 
-  return sale;
+  return mapSaleWithLabels(sale as unknown as Record<string, unknown>);
 }
 
 export async function getSalesStats(userId: string, gatewayId?: string): Promise<unknown> {
@@ -121,13 +133,38 @@ export async function getSalesStats(userId: string, gatewayId?: string): Promise
   };
 }
 
-export async function getSalesByStatus(userId: string, gatewayId?: string): Promise<unknown> {
+interface FilterOptions {
+  gatewayId?: string;
+  startDate?: string;
+  endDate?: string;
+  productKey?: string;
+  period?: string;
+}
+
+export async function getSalesByStatus(userId: string, options: FilterOptions = {}): Promise<unknown> {
+  const { gatewayId, startDate, endDate, productKey } = options;
+
   const where: Prisma.SaleWhereInput = {
     gatewayConfig: { userId },
   };
 
   if (gatewayId) {
     where.gatewayConfigId = gatewayId;
+  }
+
+  if (startDate && endDate) {
+    const start = parseDate(startDate);
+    const end = parseDate(endDate);
+    if (start && end) {
+      where.transCreateDate = {
+        gte: startOfDay(start),
+        lte: endOfDay(end),
+      };
+    }
+  }
+
+  if (productKey) {
+    where.productKey = productKey;
   }
 
   const result = await prisma.sale.groupBy({
@@ -140,16 +177,18 @@ export async function getSalesByStatus(userId: string, gatewayId?: string): Prom
   });
 
   return result.map((item) => ({
-    status: item.transStatusCode,
-    count: item._count,
-    totalValue: item._sum.transTotalValue || 0,
+    transStatusCode: item.transStatusCode,
+    _count: item._count,
+    _sum: { transTotalValue: item._sum.transTotalValue || 0 },
   }));
 }
 
 export async function getSalesByProduct(
   userId: string,
-  gatewayId?: string
+  options: FilterOptions = {}
 ): Promise<unknown> {
+  const { gatewayId, startDate, endDate } = options;
+
   const where: Prisma.SaleWhereInput = {
     gatewayConfig: { userId },
     transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO,
@@ -157,6 +196,17 @@ export async function getSalesByProduct(
 
   if (gatewayId) {
     where.gatewayConfigId = gatewayId;
+  }
+
+  if (startDate && endDate) {
+    const start = parseDate(startDate);
+    const end = parseDate(endDate);
+    if (start && end) {
+      where.transCreateDate = {
+        gte: startOfDay(start),
+        lte: endOfDay(end),
+      };
+    }
   }
 
   const result = await prisma.sale.groupBy({
@@ -171,34 +221,52 @@ export async function getSalesByProduct(
         productKey: 'desc',
       },
     },
-    take: 10,
   });
 
   return result.map((item) => ({
     productKey: item.productKey,
     productName: item.productName,
-    count: item._count,
-    totalValue: item._sum.transTotalValue || 0,
+    _count: item._count,
+    _sum: { transTotalValue: item._sum.transTotalValue || 0 },
   }));
 }
 
 export async function getSalesByPeriod(
   userId: string,
-  period: string = 'last30days',
-  gatewayId?: string
+  options: FilterOptions = {}
 ): Promise<unknown> {
-  const { start, end } = getDateRangeFromPeriod(period);
+  const { period = 'last30days', gatewayId, startDate, endDate, productKey } = options;
+
+  let dateFilter: { gte: Date; lte: Date };
+
+  if (startDate && endDate) {
+    const start = parseDate(startDate);
+    const end = parseDate(endDate);
+    if (start && end) {
+      dateFilter = {
+        gte: startOfDay(start),
+        lte: endOfDay(end),
+      };
+    } else {
+      const range = getDateRangeFromPeriod(period);
+      dateFilter = { gte: range.start, lte: range.end };
+    }
+  } else {
+    const range = getDateRangeFromPeriod(period);
+    dateFilter = { gte: range.start, lte: range.end };
+  }
 
   const where: Prisma.SaleWhereInput = {
     gatewayConfig: { userId },
-    transCreateDate: {
-      gte: start,
-      lte: end,
-    },
+    transCreateDate: dateFilter,
   };
 
   if (gatewayId) {
     where.gatewayConfigId = gatewayId;
+  }
+
+  if (productKey) {
+    where.productKey = productKey;
   }
 
   const sales = await prisma.sale.findMany({
@@ -248,7 +316,7 @@ export async function getRecentSales(
     where.gatewayConfigId = gatewayId;
   }
 
-  return prisma.sale.findMany({
+  const sales = await prisma.sale.findMany({
     where,
     take: limit,
     orderBy: { transCreateDate: 'desc' },
@@ -259,8 +327,11 @@ export async function getRecentSales(
       clientName: true,
       transTotalValue: true,
       transStatusCode: true,
+      transStatus: true,
       transCreateDate: true,
       paymentType: true,
     },
   });
+
+  return sales.map(sale => mapSaleWithLabels(sale as unknown as Record<string, unknown>));
 }

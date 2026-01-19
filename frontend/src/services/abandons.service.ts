@@ -28,8 +28,11 @@ export const abandonsService = {
     return response.data.data.abandon;
   },
 
-  async getStats(gatewayId?: string): Promise<unknown> {
-    const params = gatewayId ? { gatewayId } : {};
+  async getStats(filters: AbandonsFilter = {}): Promise<unknown> {
+    const params: Record<string, string> = {};
+    if (filters.gatewayId) params.gatewayId = filters.gatewayId;
+    if (filters.startDate) params.startDate = filters.startDate;
+    if (filters.endDate) params.endDate = filters.endDate;
     const response = await api.get("/api/abandons/stats", { params });
     return response.data.data;
   },

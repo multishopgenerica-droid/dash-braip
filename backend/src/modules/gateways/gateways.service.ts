@@ -8,12 +8,21 @@ import { CreateGatewayDTO, UpdateGatewayDTO } from './gateways.dto';
 
 type GatewayWithoutToken = Omit<GatewayConfig, 'apiToken'>;
 
-function excludeToken(gateway: GatewayConfig): GatewayWithoutToken {
-  const { apiToken: _, ...gatewayWithoutToken } = gateway;
-  return gatewayWithoutToken;
+const BRAIP_PROXY_URL = process.env.BRAIP_PROXY_URL;
+
+interface GatewayResponse extends GatewayWithoutToken {
+  webhookUrl: string;
 }
 
-export async function listGateways(userId: string): Promise<GatewayWithoutToken[]> {
+const API_BASE_URL = process.env.API_BASE_URL || 'https://api-dash.utmia.com.br';
+
+function excludeToken(gateway: GatewayConfig): GatewayResponse {
+  const { apiToken: _, ...gatewayWithoutToken } = gateway;
+  const webhookUrl = `${API_BASE_URL}/webhooks/${gateway.gateway.toLowerCase()}/${gateway.webhookToken}`;
+  return { ...gatewayWithoutToken, webhookUrl };
+}
+
+export async function listGateways(userId: string): Promise<GatewayResponse[]> {
   const gateways = await prisma.gatewayConfig.findMany({
     where: { userId },
     orderBy: { createdAt: 'desc' },
@@ -25,7 +34,7 @@ export async function listGateways(userId: string): Promise<GatewayWithoutToken[
 export async function getGatewayById(
   userId: string,
   gatewayId: string
-): Promise<GatewayWithoutToken> {
+): Promise<GatewayResponse> {
   const gateway = await prisma.gatewayConfig.findFirst({
     where: { id: gatewayId, userId },
   });
@@ -40,7 +49,7 @@ export async function getGatewayById(
 export async function createGateway(
   userId: string,
   data: CreateGatewayDTO
-): Promise<GatewayWithoutToken> {
+): Promise<GatewayResponse> {
   const existingGateway = await prisma.gatewayConfig.findUnique({
     where: {
       userId_gateway: {
@@ -54,9 +63,16 @@ export async function createGateway(
     throw new AppError(400, GATEWAY_MESSAGES.ALREADY_EXISTS);
   }
 
-  // Skip connection test - Cloudflare blocks datacenter IPs
-  // TODO: Implement webhook-based validation or request IP whitelist from Braip
-  console.log(`Creating gateway ${data.gateway} - skipping connection test due to Cloudflare restrictions`);
+  // Test connection with proxy to bypass Cloudflare
+  const provider = createGatewayProvider(data.gateway, {
+    apiToken: data.apiToken,
+    proxyUrl: BRAIP_PROXY_URL,
+  });
+  const isValid = await provider.testConnection();
+
+  if (!isValid) {
+    throw new AppError(400, GATEWAY_MESSAGES.INVALID_TOKEN);
+  }
 
   const encryptedToken = encrypt(data.apiToken);
 
@@ -75,7 +91,7 @@ export async function updateGateway(
   userId: string,
   gatewayId: string,
   data: UpdateGatewayDTO
-): Promise<GatewayWithoutToken> {
+): Promise<GatewayResponse> {
   const gateway = await prisma.gatewayConfig.findFirst({
     where: { id: gatewayId, userId },
   });
@@ -87,8 +103,11 @@ export async function updateGateway(
   const updateData: Partial<GatewayConfig> = {};
 
   if (data.apiToken) {
-    // Test new token before saving
-    const provider = createGatewayProvider(gateway.gateway, data.apiToken);
+    // Test new token before saving (with proxy to bypass Cloudflare)
+    const provider = createGatewayProvider(gateway.gateway, {
+      apiToken: data.apiToken,
+      proxyUrl: BRAIP_PROXY_URL,
+    });
     const isValid = await provider.testConnection();
 
     if (!isValid) {
@@ -137,7 +156,10 @@ export async function testGatewayConnection(
   }
 
   const decryptedToken = decrypt(gateway.apiToken);
-  const provider = createGatewayProvider(gateway.gateway, decryptedToken);
+  const provider = createGatewayProvider(gateway.gateway, {
+    apiToken: decryptedToken,
+    proxyUrl: BRAIP_PROXY_URL,
+  });
 
   return provider.testConnection();
 }

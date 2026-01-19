@@ -2,9 +2,69 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Filter, Download, ChevronLeft, ChevronRight, ShoppingBag } from "lucide-react";
+import { Search, Filter, Download, ChevronLeft, ChevronRight, ShoppingBag, Calendar, X } from "lucide-react";
 import { abandonsService, AbandonsFilter } from "@/services/abandons.service";
+import { gatewaysService } from "@/services/gateways.service";
+import { analyticsService } from "@/services/analytics.service";
 import { formatDateTime } from "@/lib/utils";
+
+const PERIOD_OPTIONS = [
+  { value: "today", label: "Hoje" },
+  { value: "yesterday", label: "Ontem" },
+  { value: "last7days", label: "Últimos 7 dias" },
+  { value: "last30days", label: "Últimos 30 dias" },
+  { value: "thisMonth", label: "Este mês" },
+  { value: "lastMonth", label: "Mês passado" },
+  { value: "last90days", label: "Últimos 90 dias" },
+  { value: "thisYear", label: "Este ano" },
+  { value: "custom", label: "Personalizado" },
+];
+
+function getDateRangeFromPeriod(period: string): { startDate: string; endDate: string } {
+  const now = new Date();
+  const today = now.toISOString().split("T")[0];
+
+  switch (period) {
+    case "today":
+      return { startDate: today, endDate: today };
+    case "yesterday": {
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split("T")[0];
+      return { startDate: yesterdayStr, endDate: yesterdayStr };
+    }
+    case "last7days": {
+      const start = new Date(now);
+      start.setDate(start.getDate() - 7);
+      return { startDate: start.toISOString().split("T")[0], endDate: today };
+    }
+    case "last30days": {
+      const start = new Date(now);
+      start.setDate(start.getDate() - 30);
+      return { startDate: start.toISOString().split("T")[0], endDate: today };
+    }
+    case "thisMonth": {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      return { startDate: start.toISOString().split("T")[0], endDate: today };
+    }
+    case "lastMonth": {
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const end = new Date(now.getFullYear(), now.getMonth(), 0);
+      return { startDate: start.toISOString().split("T")[0], endDate: end.toISOString().split("T")[0] };
+    }
+    case "last90days": {
+      const start = new Date(now);
+      start.setDate(start.getDate() - 90);
+      return { startDate: start.toISOString().split("T")[0], endDate: today };
+    }
+    case "thisYear": {
+      const start = new Date(now.getFullYear(), 0, 1);
+      return { startDate: start.toISOString().split("T")[0], endDate: today };
+    }
+    default:
+      return { startDate: "", endDate: "" };
+  }
+}
 
 export default function AbandonosPage() {
   const [filters, setFilters] = useState<AbandonsFilter>({
@@ -13,6 +73,19 @@ export default function AbandonosPage() {
   });
   const [search, setSearch] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState("last30days");
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
+
+  const { data: gateways } = useQuery({
+    queryKey: ["gateways"],
+    queryFn: () => gatewaysService.list(),
+  });
+
+  const { data: products } = useQuery({
+    queryKey: ["products-list", filters.gatewayId],
+    queryFn: () => analyticsService.getProducts(filters.gatewayId),
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ["abandons", filters],
@@ -20,8 +93,8 @@ export default function AbandonosPage() {
   });
 
   const { data: stats } = useQuery({
-    queryKey: ["abandons-stats"],
-    queryFn: () => abandonsService.getStats(),
+    queryKey: ["abandons-stats", filters],
+    queryFn: () => abandonsService.getStats(filters),
   });
 
   const handleSearch = (e: React.FormEvent) => {
@@ -30,12 +103,36 @@ export default function AbandonosPage() {
   };
 
   const handleFilterChange = (key: keyof AbandonsFilter, value: string) => {
-    setFilters({ ...filters, [key]: value, page: 1 });
+    setFilters({ ...filters, [key]: value || undefined, page: 1 });
+  };
+
+  const handlePeriodChange = (period: string) => {
+    setSelectedPeriod(period);
+    if (period !== "custom") {
+      const { startDate, endDate } = getDateRangeFromPeriod(period);
+      setFilters({ ...filters, startDate, endDate, page: 1 });
+    }
+  };
+
+  const handleCustomDateApply = () => {
+    if (customStartDate && customEndDate) {
+      setFilters({ ...filters, startDate: customStartDate, endDate: customEndDate, page: 1 });
+    }
   };
 
   const handlePageChange = (newPage: number) => {
     setFilters({ ...filters, page: newPage });
   };
+
+  const handleClearFilters = () => {
+    setFilters({ page: 1, limit: 20 });
+    setSearch("");
+    setSelectedPeriod("last30days");
+    setCustomStartDate("");
+    setCustomEndDate("");
+  };
+
+  const hasActiveFilters = filters.gatewayId || filters.productKey || filters.startDate || filters.endDate || search;
 
   return (
     <div className="space-y-6">
@@ -55,14 +152,14 @@ export default function AbandonosPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 bg-red-100 rounded-lg flex items-center justify-center">
+            <div className="h-10 w-10 bg-red-100 dark:bg-red-900/30 rounded-lg flex items-center justify-center">
               <ShoppingBag className="h-5 w-5 text-red-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Total de Abandonos</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Total de Abandonos</p>
               <p className="text-xl font-bold text-gray-900 dark:text-white">
                 {(stats as { total?: number })?.total || 0}
               </p>
@@ -71,11 +168,11 @@ export default function AbandonosPage() {
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 bg-yellow-100 rounded-lg flex items-center justify-center">
+            <div className="h-10 w-10 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg flex items-center justify-center">
               <ShoppingBag className="h-5 w-5 text-yellow-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Hoje</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Hoje</p>
               <p className="text-xl font-bold text-gray-900 dark:text-white">
                 {(stats as { today?: number })?.today || 0}
               </p>
@@ -84,21 +181,84 @@ export default function AbandonosPage() {
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 bg-orange-100 rounded-lg flex items-center justify-center">
+            <div className="h-10 w-10 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center">
               <ShoppingBag className="h-5 w-5 text-orange-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Esta Semana</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Esta Semana</p>
               <p className="text-xl font-bold text-gray-900 dark:text-white">
                 {(stats as { thisWeek?: number })?.thisWeek || 0}
               </p>
             </div>
           </div>
         </div>
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center">
+              <ShoppingBag className="h-5 w-5 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Este Mês</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-white">
+                {(stats as { thisMonth?: number })?.thisMonth || 0}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Filters */}
+      {/* Period Selector */}
       <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+        <div className="flex flex-wrap gap-2 mb-4">
+          {PERIOD_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              onClick={() => handlePeriodChange(option.value)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                selectedPeriod === option.value
+                  ? "bg-primary text-white"
+                  : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        {selectedPeriod === "custom" && (
+          <div className="flex flex-wrap items-end gap-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg mb-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Data Inicial
+              </label>
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Data Final
+              </label>
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              />
+            </div>
+            <button
+              onClick={handleCustomDateApply}
+              disabled={!customStartDate || !customEndDate}
+              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50"
+            >
+              Aplicar
+            </button>
+          </div>
+        )}
+
         <div className="flex flex-col md:flex-row gap-4">
           <form onSubmit={handleSearch} className="flex-1">
             <div className="relative">
@@ -115,42 +275,73 @@ export default function AbandonosPage() {
 
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+            className={`flex items-center gap-2 px-4 py-2 border rounded-lg transition-colors ${
+              showFilters || hasActiveFilters
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+            }`}
           >
             <Filter className="h-4 w-4" />
             Filtros
+            {hasActiveFilters && (
+              <span className="ml-1 px-1.5 py-0.5 text-xs bg-primary text-white rounded-full">
+                !
+              </span>
+            )}
           </button>
+
+          {hasActiveFilters && (
+            <button
+              onClick={handleClearFilters}
+              className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+            >
+              <X className="h-4 w-4" />
+              Limpar
+            </button>
+          )}
         </div>
 
         {showFilters && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Data Inicial
+                Gateway
               </label>
-              <input
-                type="date"
-                value={filters.startDate || ""}
-                onChange={(e) => handleFilterChange("startDate", e.target.value)}
+              <select
+                value={filters.gatewayId || ""}
+                onChange={(e) => handleFilterChange("gatewayId", e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              />
+              >
+                <option value="">Todos os gateways</option>
+                {gateways?.map((gateway) => (
+                  <option key={gateway.id} value={gateway.id}>
+                    {gateway.gateway}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Data Final
+                Produto
               </label>
-              <input
-                type="date"
-                value={filters.endDate || ""}
-                onChange={(e) => handleFilterChange("endDate", e.target.value)}
+              <select
+                value={filters.productKey || ""}
+                onChange={(e) => handleFilterChange("productKey", e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              />
+              >
+                <option value="">Todos os produtos</option>
+                {products?.map((product) => (
+                  <option key={product.productKey} value={product.productKey}>
+                    {product.productName}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Itens por pagina
+                Itens por página
               </label>
               <select
                 value={filters.limit || 20}
@@ -262,7 +453,7 @@ export default function AbandonosPage() {
                     <ChevronLeft className="h-4 w-4" />
                   </button>
                   <span className="flex items-center px-3 text-sm">
-                    Pagina {data.pagination.page} de {data.pagination.totalPages}
+                    Página {data.pagination.page} de {data.pagination.totalPages}
                   </span>
                   <button
                     onClick={() => handlePageChange(data.pagination.page + 1)}

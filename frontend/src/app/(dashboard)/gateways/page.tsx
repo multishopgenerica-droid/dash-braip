@@ -11,8 +11,10 @@ import {
   XCircle,
   Clock,
   AlertCircle,
+  Edit2,
 } from "lucide-react";
-import { gatewaysService, CreateGatewayDTO } from "@/services/gateways.service";
+import { gatewaysService, CreateGatewayDTO, UpdateGatewayDTO } from "@/services/gateways.service";
+import { GatewayConfig } from "@/types/api.types";
 import { formatDateTime } from "@/lib/utils";
 
 const GATEWAY_OPTIONS = [
@@ -33,11 +35,15 @@ const STATUS_ICONS = {
 export default function GatewaysPage() {
   const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingGateway, setEditingGateway] = useState<GatewayConfig | null>(null);
   const [formData, setFormData] = useState<CreateGatewayDTO>({
     gateway: "BRAIP",
     apiToken: "",
   });
+  const [editToken, setEditToken] = useState("");
   const [error, setError] = useState("");
+  const [editError, setEditError] = useState("");
 
   const { data: gateways, isLoading } = useQuery({
     queryKey: ["gateways"],
@@ -70,6 +76,38 @@ export default function GatewaysPage() {
       queryClient.invalidateQueries({ queryKey: ["gateways"] });
     },
   });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateGatewayDTO }) =>
+      gatewaysService.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["gateways"] });
+      setShowEditModal(false);
+      setEditingGateway(null);
+      setEditToken("");
+      setEditError("");
+    },
+    onError: (err: { response?: { data?: { error?: string } } }) => {
+      setEditError(err.response?.data?.error || "Erro ao atualizar token");
+    },
+  });
+
+  const handleEditClick = (gateway: GatewayConfig) => {
+    setEditingGateway(gateway);
+    setEditToken("");
+    setEditError("");
+    setShowEditModal(true);
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingGateway || !editToken.trim()) return;
+    setEditError("");
+    updateMutation.mutate({
+      id: editingGateway.id,
+      data: { apiToken: editToken },
+    });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -169,12 +207,20 @@ export default function GatewaysPage() {
                     Sincronizar
                   </button>
                   <button
+                    onClick={() => handleEditClick(gateway)}
+                    className="p-2 border border-blue-300 text-blue-600 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                    title="Editar Token"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </button>
+                  <button
                     onClick={() => {
                       if (confirm("Deseja remover este gateway?")) {
                         deleteMutation.mutate(gateway.id);
                       }
                     }}
-                    className="p-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
+                    className="p-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
+                    title="Remover Gateway"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -270,6 +316,67 @@ export default function GatewaysPage() {
                   className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50"
                 >
                   {createMutation.isPending ? "Salvando..." : "Salvar"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Token Modal */}
+      {showEditModal && editingGateway && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+              Editar Token
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              Atualize o token de API do gateway{" "}
+              <span className="font-medium">
+                {GATEWAY_OPTIONS.find((g) => g.value === editingGateway.gateway)?.label || editingGateway.gateway}
+              </span>
+            </p>
+
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              {editError && (
+                <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-3 rounded-md text-sm">
+                  {editError}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Novo Token da API
+                </label>
+                <textarea
+                  value={editToken}
+                  onChange={(e) => setEditToken(e.target.value)}
+                  placeholder="Cole seu novo token de API aqui"
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingGateway(null);
+                    setEditToken("");
+                    setEditError("");
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={updateMutation.isPending || !editToken.trim()}
+                  className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {updateMutation.isPending ? "Salvando..." : "Atualizar Token"}
                 </button>
               </div>
             </form>

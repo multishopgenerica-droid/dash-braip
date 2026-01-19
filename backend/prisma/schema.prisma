@@ -46,20 +46,23 @@ enum Role {
 // ==================== GATEWAYS ====================
 
 model GatewayConfig {
-  id          String      @id @default(cuid())
-  userId      String
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  gateway     GatewayType
-  apiToken    String
-  isActive    Boolean     @default(true)
-  lastSync    DateTime?
-  syncStatus  SyncStatus  @default(PENDING)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id           String      @id @default(cuid())
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gateway      GatewayType
+  apiToken     String
+  webhookToken String?     @unique @default(cuid())
+  isActive     Boolean     @default(true)
+  lastSync     DateTime?
+  syncStatus   SyncStatus  @default(PENDING)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
 
-  sales       Sale[]
-  abandons    Abandon[]
-  products    Product[]
+  sales        Sale[]
+  abandons     Abandon[]
+  products     Product[]
+  affiliates   Affiliate[]
+  webhookLogs  WebhookLog[]
 
   @@unique([userId, gateway])
   @@map("gateway_configs")
@@ -201,11 +204,58 @@ model Product {
   totalAbandons   Int           @default(0)
   conversionRate  Float         @default(0)
 
+  plans           Plan[]
+
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
   @@unique([gatewayConfigId, productHash])
   @@map("products")
+}
+
+model Plan {
+  id           String   @id @default(cuid())
+  productId    String
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  planKey      String
+  planName     String
+  planAmount   Int      @default(0)
+
+  totalSales   Int      @default(0)
+  totalRevenue Int      @default(0)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([productId, planKey])
+  @@index([productId])
+  @@map("plans")
+}
+
+// ==================== AFILIADOS ====================
+
+model Affiliate {
+  id              String        @id @default(cuid())
+  gatewayConfigId String
+  gatewayConfig   GatewayConfig @relation(fields: [gatewayConfigId], references: [id], onDelete: Cascade)
+
+  affiliateHash   String
+  name            String
+  email           String?
+  phone           String?
+  document        String?
+
+  totalSales      Int           @default(0)
+  totalRevenue    Int           @default(0)
+  totalCommission Int           @default(0)
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([gatewayConfigId, affiliateHash])
+  @@index([gatewayConfigId])
+  @@map("affiliates")
 }
 
 // ==================== ASSINATURAS ====================
@@ -301,4 +351,119 @@ enum AiAnalysisStatus {
   PROCESSING
   COMPLETED
   FAILED
+}
+
+// ==================== WEBHOOKS ====================
+
+model WebhookLog {
+  id              String        @id @default(cuid())
+  gatewayConfigId String
+  gatewayConfig   GatewayConfig @relation(fields: [gatewayConfigId], references: [id], onDelete: Cascade)
+
+  event           String
+  payload         Json
+  status          WebhookStatus @default(RECEIVED)
+  errorMessage    String?
+  processedAt     DateTime?
+
+  createdAt       DateTime      @default(now())
+
+  @@index([gatewayConfigId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("webhook_logs")
+}
+
+enum WebhookStatus {
+  RECEIVED
+  PROCESSED
+  FAILED
+}
+
+// ==================== TELEGRAM IA ====================
+
+model TelegramConfig {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+
+  enabled         Boolean  @default(false)
+  botToken        String?
+  botUsername     String?
+  webhookSecret   String?  @default(cuid())
+
+  // Authorized Telegram user IDs (comma-separated)
+  authorizedUsers String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  chatLogs        TelegramChatLog[]
+
+  @@map("telegram_configs")
+}
+
+model TelegramChatLog {
+  id              String   @id @default(cuid())
+  telegramConfigId String
+  telegramConfig  TelegramConfig @relation(fields: [telegramConfigId], references: [id], onDelete: Cascade)
+
+  chatId          String
+  userId          String
+  username        String?
+  firstName       String?
+  messageIn       String   @db.Text
+  messageOut      String?  @db.Text
+  intent          String?
+  queryData       Json?
+
+  processedAt     DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([telegramConfigId])
+  @@index([chatId])
+  @@index([createdAt])
+  @@map("telegram_chat_logs")
+}
+
+// ==================== WHATSAPP IA ====================
+
+model WhatsAppConfig {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+
+  enabled         Boolean  @default(false)
+  phoneNumber     String?
+  instanceName    String?
+  evolutionApiUrl String?
+  evolutionApiKey String?
+
+  // Authorized phone numbers that can query (comma-separated)
+  authorizedPhones String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  chatLogs        WhatsAppChatLog[]
+
+  @@map("whatsapp_configs")
+}
+
+model WhatsAppChatLog {
+  id              String   @id @default(cuid())
+  whatsappConfigId String
+  whatsappConfig  WhatsAppConfig @relation(fields: [whatsappConfigId], references: [id], onDelete: Cascade)
+
+  phoneNumber     String
+  messageIn       String   @db.Text
+  messageOut      String?  @db.Text
+  intent          String?
+  queryData       Json?
+
+  processedAt     DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([whatsappConfigId])
+  @@index([phoneNumber])
+  @@index([createdAt])
+  @@map("whatsapp_chat_logs")
 }

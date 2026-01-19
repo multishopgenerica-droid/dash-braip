@@ -6,12 +6,14 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
-      DATABASE_URL: postgresql://dashboard:${DB_PASSWORD}@postgres_postgres:5432/dashboard_db
-      REDIS_URL: redis://redis_redis:6379
-      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      DATABASE_URL: postgresql://dashboard:dashboard123@173.212.239.150:5432/dashboard_db
+      REDIS_URL: redis://173.212.239.150:6379
+      JWT_ACCESS_SECRET: 8778f5268dbba3630b4ee8ab51e633128554f9c3afb83b58a3469e7ba97e0ab9
+      JWT_REFRESH_SECRET: 6d5e96f6f30af629bac4cef26226556787a05ba405ae34d1e4daaf5e68baa003
+      ENCRYPTION_KEY: ca72afa9256e2d3817e6f363a1ab566526e180b1b3f36af169058c6ba9e3a0e4
       FRONTEND_URL: https://dash.utmia.com.br
+      API_BASE_URL: https://api-dash.utmia.com.br
+      BRAIP_PROXY_URL: http://7b5b8ef04317:d1c57f56db2c@server.sixproxy.com:24654
     networks:
       - rede
     deploy:

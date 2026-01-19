@@ -44,7 +44,9 @@ export async function getAbandonsStats(
 ): Promise<void> {
   try {
     const gatewayId = req.query.gatewayId as string | undefined;
-    const stats = await abandonsService.getAbandonsStats(req.user!.id, gatewayId);
+    const startDate = req.query.startDate as string | undefined;
+    const endDate = req.query.endDate as string | undefined;
+    const stats = await abandonsService.getAbandonsStats(req.user!.id, { gatewayId, startDate, endDate });
 
     res.json({
       success: true,

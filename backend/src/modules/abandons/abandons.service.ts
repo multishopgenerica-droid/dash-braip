@@ -80,44 +80,86 @@ export async function getAbandonById(userId: string, abandonId: string): Promise
   return abandon;
 }
 
-export async function getAbandonsStats(userId: string, gatewayId?: string): Promise<unknown> {
+interface StatsFilter {
+  gatewayId?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+export async function getAbandonsStats(userId: string, filters: StatsFilter = {}): Promise<unknown> {
   const where: Prisma.AbandonWhereInput = {
     gatewayConfig: { userId },
   };
 
-  if (gatewayId) {
-    where.gatewayConfigId = gatewayId;
+  if (filters.gatewayId) {
+    where.gatewayConfigId = filters.gatewayId;
+  }
+
+  // Apply date filter if provided
+  if (filters.startDate && filters.endDate) {
+    const start = parseDate(filters.startDate);
+    const end = parseDate(filters.endDate);
+    if (start && end) {
+      where.transCreateDate = {
+        gte: startOfDay(start),
+        lte: endOfDay(end),
+      };
+    }
   }
 
   const total = await prisma.abandon.count({ where });
 
-  // Today's abandons
+  // Today's abandons (within the filtered period if applicable)
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
 
-  const todayAbandons = await prisma.abandon.count({
-    where: {
-      ...where,
-      transCreateDate: { gte: today },
-    },
-  });
+  const todayWhere: Prisma.AbandonWhereInput = {
+    gatewayConfig: { userId },
+    transCreateDate: { gte: today, lt: tomorrow },
+  };
+  if (filters.gatewayId) {
+    todayWhere.gatewayConfigId = filters.gatewayId;
+  }
+
+  const todayAbandons = await prisma.abandon.count({ where: todayWhere });
 
   // This week's abandons
   const weekStart = new Date();
   weekStart.setDate(weekStart.getDate() - 7);
   weekStart.setHours(0, 0, 0, 0);
 
-  const weekAbandons = await prisma.abandon.count({
-    where: {
-      ...where,
-      transCreateDate: { gte: weekStart },
-    },
-  });
+  const weekWhere: Prisma.AbandonWhereInput = {
+    gatewayConfig: { userId },
+    transCreateDate: { gte: weekStart },
+  };
+  if (filters.gatewayId) {
+    weekWhere.gatewayConfigId = filters.gatewayId;
+  }
+
+  const weekAbandons = await prisma.abandon.count({ where: weekWhere });
+
+  // This month's abandons
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+
+  const monthWhere: Prisma.AbandonWhereInput = {
+    gatewayConfig: { userId },
+    transCreateDate: { gte: monthStart },
+  };
+  if (filters.gatewayId) {
+    monthWhere.gatewayConfigId = filters.gatewayId;
+  }
+
+  const monthAbandons = await prisma.abandon.count({ where: monthWhere });
 
   return {
     total,
     today: todayAbandons,
     thisWeek: weekAbandons,
+    thisMonth: monthAbandons,
   };
 }
 

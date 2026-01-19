@@ -62,7 +62,10 @@ export async function getSalesByStatus(
 ): Promise<void> {
   try {
     const gatewayId = req.query.gatewayId as string | undefined;
-    const data = await salesService.getSalesByStatus(req.user!.id, gatewayId);
+    const startDate = req.query.startDate as string | undefined;
+    const endDate = req.query.endDate as string | undefined;
+    const productKey = req.query.productKey as string | undefined;
+    const data = await salesService.getSalesByStatus(req.user!.id, { gatewayId, startDate, endDate, productKey });
 
     res.json({
       success: true,
@@ -80,7 +83,9 @@ export async function getSalesByProduct(
 ): Promise<void> {
   try {
     const gatewayId = req.query.gatewayId as string | undefined;
-    const data = await salesService.getSalesByProduct(req.user!.id, gatewayId);
+    const startDate = req.query.startDate as string | undefined;
+    const endDate = req.query.endDate as string | undefined;
+    const data = await salesService.getSalesByProduct(req.user!.id, { gatewayId, startDate, endDate });
 
     res.json({
       success: true,
@@ -99,7 +104,10 @@ export async function getSalesByPeriod(
   try {
     const period = (req.query.period as string) || 'last30days';
     const gatewayId = req.query.gatewayId as string | undefined;
-    const data = await salesService.getSalesByPeriod(req.user!.id, period, gatewayId);
+    const startDate = req.query.startDate as string | undefined;
+    const endDate = req.query.endDate as string | undefined;
+    const productKey = req.query.productKey as string | undefined;
+    const data = await salesService.getSalesByPeriod(req.user!.id, { period, gatewayId, startDate, endDate, productKey });
 
     res.json({
       success: true,
