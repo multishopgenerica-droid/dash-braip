@@ -136,8 +136,8 @@ export class BraipProvider implements PaymentGateway {
       }
 
       ranges.push({
-        start: this.formatDate(currentStart),
-        end: this.formatDate(currentEnd),
+        start: this.formatDateStart(currentStart),
+        end: this.formatDateEnd(currentEnd),
       });
 
       currentStart = new Date(currentEnd);
@@ -147,19 +147,26 @@ export class BraipProvider implements PaymentGateway {
     // Ensure at least one range exists
     if (ranges.length === 0) {
       ranges.push({
-        start: this.formatDate(start),
-        end: this.formatDate(end),
+        start: this.formatDateStart(start),
+        end: this.formatDateEnd(end),
       });
     }
 
     return ranges;
   }
 
-  private formatDate(date: Date): string {
+  private formatDateStart(date: Date): string {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day} 00:00:00`;
+  }
+
+  private formatDateEnd(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day} 23:59:59`;
   }
 
   async fetchAbandons(params: AbandonFilter): Promise<BraipAbandon[]> {
