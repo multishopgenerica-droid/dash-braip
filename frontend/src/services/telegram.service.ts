@@ -29,27 +29,27 @@ export interface ChatLog {
 
 export const telegramService = {
   async getConfig(): Promise<TelegramConfig> {
-    const response = await api.get("/telegram/config");
+    const response = await api.get("/api/telegram/config");
     return response.data.data;
   },
 
   async updateConfig(config: Partial<TelegramConfig>): Promise<TelegramConfig> {
-    const response = await api.put("/telegram/config", config);
+    const response = await api.put("/api/telegram/config", config);
     return response.data.data;
   },
 
   async setupWebhook(baseUrl: string): Promise<{ webhookUrl: string }> {
-    const response = await api.post("/telegram/setup-webhook", { baseUrl });
+    const response = await api.post("/api/telegram/setup-webhook", { baseUrl });
     return response.data.data;
   },
 
   async testConnection(): Promise<ConnectionStatus> {
-    const response = await api.post("/telegram/test-connection");
+    const response = await api.post("/api/telegram/test-connection");
     return response.data.data;
   },
 
   async getChatHistory(limit: number = 50): Promise<ChatLog[]> {
-    const response = await api.get(`/telegram/history?limit=${limit}`);
+    const response = await api.get(`/api/telegram/history?limit=${limit}`);
     return response.data.data;
   },
 };

@@ -425,6 +425,29 @@ model TelegramChatLog {
   @@map("telegram_chat_logs")
 }
 
+// ==================== OPENAI API KEYS ====================
+
+model OpenAIConfig {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+
+  enabled         Boolean  @default(false)
+  apiKey          String?
+  model           String   @default("gpt-4o-mini")
+  maxTokens       Int      @default(1000)
+  temperature     Float    @default(0.7)
+
+  // Usage tracking
+  totalTokensUsed Int      @default(0)
+  totalRequests   Int      @default(0)
+  lastUsedAt      DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("openai_configs")
+}
+
 // ==================== WHATSAPP IA ====================
 
 model WhatsAppConfig {

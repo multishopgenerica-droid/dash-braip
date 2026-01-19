@@ -1,6 +1,7 @@
 import { prisma } from '../../config/database';
 import { SALE_STATUS } from '../../shared/constants/status-codes';
 import OpenAI from 'openai';
+import { openAIService } from '../openai/openai.service';
 
 // Intent types
 export type IntentType =
@@ -489,30 +490,78 @@ export class AIQueryService {
     try {
       const data = await this.getFullAnalyticsData(userId);
 
-      if (!this.openai) {
-        return this.getFallbackAnalysis(data, analysisType);
+      // Try to get OpenAI config from database first
+      const openaiConfig = await openAIService.getConfig(userId);
+
+      // Check if user has configured OpenAI with their own key
+      if (openaiConfig?.enabled && openaiConfig?.apiKey) {
+        try {
+          const client = new OpenAI({ apiKey: openaiConfig.apiKey });
+
+          const systemPrompt = this.getSystemPrompt(analysisType);
+          const userPrompt = this.getUserPrompt(data, userMessage, analysisType);
+
+          const completion = await client.chat.completions.create({
+            model: openaiConfig.model || 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt },
+            ],
+            max_tokens: openaiConfig.maxTokens || 1000,
+            temperature: openaiConfig.temperature || 0.7,
+          });
+
+          const tokensUsed = completion.usage?.total_tokens || 0;
+
+          // Update usage stats
+          await prisma.openAIConfig.update({
+            where: { userId },
+            data: {
+              totalTokensUsed: { increment: tokensUsed },
+              totalRequests: { increment: 1 },
+              lastUsedAt: new Date(),
+            },
+          });
+
+          const response = completion.choices[0]?.message?.content || 'Não foi possível gerar a análise.';
+
+          return {
+            intent: 'AI_ANALYSIS',
+            data: data as unknown as Record<string, unknown>,
+            response,
+          };
+        } catch (error) {
+          console.error('User OpenAI API error:', error);
+          // Fall through to fallback
+        }
       }
 
-      const systemPrompt = this.getSystemPrompt(analysisType);
-      const userPrompt = this.getUserPrompt(data, userMessage, analysisType);
+      // Fallback: Use environment variable if available
+      if (this.openai) {
+        const systemPrompt = this.getSystemPrompt(analysisType);
+        const userPrompt = this.getUserPrompt(data, userMessage, analysisType);
 
-      const completion = await this.openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        max_tokens: 1000,
-        temperature: 0.7,
-      });
+        const completion = await this.openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          max_tokens: 1000,
+          temperature: 0.7,
+        });
 
-      const response = completion.choices[0]?.message?.content || 'Não foi possível gerar a análise.';
+        const response = completion.choices[0]?.message?.content || 'Não foi possível gerar a análise.';
 
-      return {
-        intent: 'AI_ANALYSIS',
-        data: data as unknown as Record<string, unknown>,
-        response,
-      };
+        return {
+          intent: 'AI_ANALYSIS',
+          data: data as unknown as Record<string, unknown>,
+          response,
+        };
+      }
+
+      // No OpenAI available, use fallback analysis
+      return this.getFallbackAnalysis(data, analysisType);
     } catch (error) {
       console.error('OpenAI API error:', error);
       const data = await this.getFullAnalyticsData(userId);

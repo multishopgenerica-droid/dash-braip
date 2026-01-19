@@ -23,7 +23,8 @@ import {
 import { useAuthStore } from "@/stores/auth.store";
 import { whatsAppService, type WhatsAppConfig, type ChatLog } from "@/services/whatsapp.service";
 import { telegramService, type TelegramConfig, type ChatLog as TelegramChatLog } from "@/services/telegram.service";
-import { Send } from "lucide-react";
+import { openAIService, type OpenAIConfig, type AIModel } from "@/services/openai.service";
+import { Send, Brain, Sparkles, Zap } from "lucide-react";
 
 interface TabProps {
   id: string;
@@ -36,6 +37,7 @@ const TABS: TabProps[] = [
   { id: "security", label: "Segurança", icon: Lock },
   { id: "notifications", label: "Notificações", icon: Bell },
   { id: "appearance", label: "Aparência", icon: Palette },
+  { id: "openai", label: "OpenAI", icon: Brain },
   { id: "telegram", label: "Telegram IA", icon: Send },
   { id: "whatsapp", label: "WhatsApp IA", icon: MessageCircle },
 ];
@@ -114,6 +116,24 @@ export default function ConfiguracoesPage() {
   const [telegramConnectionStatus, setTelegramConnectionStatus] = useState<string | null>(null);
   const [showTelegramHistory, setShowTelegramHistory] = useState(false);
   const [telegramHasToken, setTelegramHasToken] = useState(false);
+
+  // OpenAI settings
+  const [openaiSettings, setOpenaiSettings] = useState<OpenAIConfig>({
+    enabled: false,
+    apiKey: null,
+    model: "gpt-4o-mini",
+    maxTokens: 1000,
+    temperature: 0.7,
+    totalTokensUsed: 0,
+    totalRequests: 0,
+    lastUsedAt: null,
+  });
+  const [openaiConnectionStatus, setOpenaiConnectionStatus] = useState<string | null>(null);
+  const [openaiHasKey, setOpenaiHasKey] = useState(false);
+  const [newApiKey, setNewApiKey] = useState("");
+  const [testPrompt, setTestPrompt] = useState("");
+  const [testResult, setTestResult] = useState<string | null>(null);
+  const [isTestingAI, setIsTestingAI] = useState(false);
 
   // Load saved theme from localStorage on mount
   useEffect(() => {
@@ -246,6 +266,47 @@ export default function ConfiguracoesPage() {
     },
   });
 
+  // Fetch OpenAI config
+  const { data: openaiConfig, isLoading: loadingOpenaiConfig } = useQuery({
+    queryKey: ["openai-config"],
+    queryFn: () => openAIService.getConfig(),
+  });
+
+  // Fetch available models
+  const { data: availableModels } = useQuery({
+    queryKey: ["openai-models"],
+    queryFn: () => openAIService.getAvailableModels(),
+  });
+
+  // Update OpenAI config mutation
+  const updateOpenaiConfigMutation = useMutation({
+    mutationFn: (config: Partial<OpenAIConfig>) => openAIService.updateConfig(config),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["openai-config"] });
+      setToast({ message: "Configurações da OpenAI salvas com sucesso!", type: "success" });
+      setNewApiKey("");
+    },
+    onError: (error: Error) => {
+      setToast({ message: `Erro ao salvar: ${error.message}`, type: "error" });
+    },
+  });
+
+  // Test OpenAI connection mutation
+  const testOpenaiConnectionMutation = useMutation({
+    mutationFn: () => openAIService.testConnection(),
+    onSuccess: (data) => {
+      setOpenaiConnectionStatus(data.connected ? "connected" : "disconnected");
+      setToast({
+        message: data.connected ? "OpenAI conectada!" : `Erro: ${data.error}`,
+        type: data.connected ? "success" : "error"
+      });
+    },
+    onError: (error: Error) => {
+      setOpenaiConnectionStatus("disconnected");
+      setToast({ message: `Erro ao testar conexão: ${error.message}`, type: "error" });
+    },
+  });
+
   // Load config into state when fetched
   useEffect(() => {
     if (whatsappConfig) {
@@ -274,6 +335,23 @@ export default function ConfiguracoesPage() {
     }
   }, [telegramConfig]);
 
+  // Load OpenAI config into state when fetched
+  useEffect(() => {
+    if (openaiConfig) {
+      setOpenaiSettings({
+        enabled: openaiConfig.enabled,
+        apiKey: openaiConfig.apiKey,
+        model: openaiConfig.model || "gpt-4o-mini",
+        maxTokens: openaiConfig.maxTokens || 1000,
+        temperature: openaiConfig.temperature || 0.7,
+        totalTokensUsed: openaiConfig.totalTokensUsed || 0,
+        totalRequests: openaiConfig.totalRequests || 0,
+        lastUsedAt: openaiConfig.lastUsedAt,
+      });
+      setOpenaiHasKey(!!openaiConfig.apiKey);
+    }
+  }, [openaiConfig]);
+
   const handleSave = () => {
     setToast({ message: "Configurações salvas!", type: "success" });
   };
@@ -296,6 +374,49 @@ export default function ConfiguracoesPage() {
     }
 
     updateTelegramConfigMutation.mutate(configToSave);
+  };
+
+  // Handle OpenAI save
+  const handleOpenaiSave = () => {
+    if (openaiSettings.enabled && !openaiHasKey && !newApiKey) {
+      setToast({ message: "Por favor, insira a chave da API", type: "error" });
+      return;
+    }
+
+    const configToSave: Partial<OpenAIConfig> = {
+      enabled: openaiSettings.enabled,
+      model: openaiSettings.model,
+      maxTokens: openaiSettings.maxTokens,
+      temperature: openaiSettings.temperature,
+    };
+
+    if (newApiKey) {
+      configToSave.apiKey = newApiKey;
+    }
+
+    updateOpenaiConfigMutation.mutate(configToSave);
+  };
+
+  // Handle AI test
+  const handleTestAI = async () => {
+    if (!testPrompt.trim()) {
+      setToast({ message: "Digite uma pergunta para testar", type: "error" });
+      return;
+    }
+
+    setIsTestingAI(true);
+    setTestResult(null);
+
+    try {
+      const result = await openAIService.analyze(testPrompt);
+      setTestResult(result.analysis);
+      setToast({ message: `Análise concluída (${result.tokensUsed} tokens)`, type: "success" });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+      setToast({ message: `Erro: ${errorMessage}`, type: "error" });
+    } finally {
+      setIsTestingAI(false);
+    }
   };
 
   return (
@@ -601,6 +722,271 @@ export default function ConfiguracoesPage() {
                   </select>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* OpenAI Tab */}
+          {activeTab === "openai" && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                <Brain className="h-6 w-6 text-emerald-500" />
+                Configuração da OpenAI
+              </h2>
+              <p className="text-gray-500 dark:text-gray-400 mb-6">
+                Configure sua API key da OpenAI para habilitar análises inteligentes via IA no dashboard, Telegram e WhatsApp
+              </p>
+
+              {loadingOpenaiConfig ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Status Card */}
+                  <div className={`p-4 rounded-lg ${openaiSettings.enabled ? "bg-emerald-50 dark:bg-emerald-900/20" : "bg-gray-50 dark:bg-gray-700"}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`h-3 w-3 rounded-full ${openaiConnectionStatus === "connected" ? "bg-emerald-500" : openaiSettings.enabled && openaiHasKey ? "bg-amber-500" : "bg-gray-400"}`}></div>
+                        <span className={`font-medium ${openaiConnectionStatus === "connected" ? "text-emerald-700 dark:text-emerald-400" : openaiSettings.enabled ? "text-emerald-700 dark:text-emerald-400" : "text-gray-600 dark:text-gray-400"}`}>
+                          {openaiConnectionStatus === "connected"
+                            ? "API conectada e funcionando"
+                            : openaiSettings.enabled && openaiHasKey
+                              ? "Configurado - clique em Testar"
+                              : openaiSettings.enabled
+                                ? "Aguardando API key"
+                                : "Desativado"}
+                        </span>
+                      </div>
+                      {openaiSettings.enabled && openaiHasKey && (
+                        <button
+                          onClick={() => testOpenaiConnectionMutation.mutate()}
+                          disabled={testOpenaiConnectionMutation.isPending}
+                          className="flex items-center gap-2 px-3 py-1 text-sm bg-white dark:bg-gray-600 rounded border border-gray-300 dark:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500"
+                        >
+                          {testOpenaiConnectionMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-4 w-4" />
+                          )}
+                          Testar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Enable Toggle */}
+                  <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div>
+                      <p className="font-medium text-gray-900 dark:text-white">Ativar OpenAI</p>
+                      <p className="text-sm text-gray-500">Habilitar análises inteligentes com IA</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={openaiSettings.enabled}
+                        onChange={(e) =>
+                          setOpenaiSettings({
+                            ...openaiSettings,
+                            enabled: e.target.checked,
+                          })
+                        }
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                    </label>
+                  </div>
+
+                  {openaiSettings.enabled && (
+                    <div className="space-y-4 p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
+                      {/* API Key */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          API Key {openaiHasKey && <span className="text-emerald-500">(Chave já configurada: {openaiSettings.apiKey})</span>}
+                        </label>
+                        <input
+                          type="password"
+                          value={newApiKey}
+                          onChange={(e) => setNewApiKey(e.target.value)}
+                          placeholder={openaiHasKey ? "Deixe vazio para manter a chave atual" : "sk-..."}
+                          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        />
+                        <p className="mt-1 text-xs text-gray-500">
+                          Obtenha sua chave em{" "}
+                          <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                            platform.openai.com/api-keys
+                          </a>
+                        </p>
+                      </div>
+
+                      {/* Model Selection */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Modelo
+                        </label>
+                        <select
+                          value={openaiSettings.model}
+                          onChange={(e) =>
+                            setOpenaiSettings({
+                              ...openaiSettings,
+                              model: e.target.value,
+                            })
+                          }
+                          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        >
+                          {availableModels?.map((model) => (
+                            <option key={model.id} value={model.id}>
+                              {model.name} - {model.description}
+                            </option>
+                          )) || (
+                            <>
+                              <option value="gpt-4o-mini">GPT-4o Mini - Fast and affordable</option>
+                              <option value="gpt-4o">GPT-4o - Most capable model</option>
+                              <option value="gpt-4-turbo">GPT-4 Turbo - Powerful with vision</option>
+                              <option value="gpt-3.5-turbo">GPT-3.5 Turbo - Fast and cheap</option>
+                            </>
+                          )}
+                        </select>
+                      </div>
+
+                      {/* Max Tokens */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Máximo de Tokens: {openaiSettings.maxTokens}
+                        </label>
+                        <input
+                          type="range"
+                          min="256"
+                          max="4096"
+                          step="256"
+                          value={openaiSettings.maxTokens}
+                          onChange={(e) =>
+                            setOpenaiSettings({
+                              ...openaiSettings,
+                              maxTokens: parseInt(e.target.value),
+                            })
+                          }
+                          className="w-full"
+                        />
+                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                          <span>256</span>
+                          <span>4096</span>
+                        </div>
+                      </div>
+
+                      {/* Temperature */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Temperatura: {openaiSettings.temperature.toFixed(1)}
+                        </label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.1"
+                          value={openaiSettings.temperature}
+                          onChange={(e) =>
+                            setOpenaiSettings({
+                              ...openaiSettings,
+                              temperature: parseFloat(e.target.value),
+                            })
+                          }
+                          className="w-full"
+                        />
+                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                          <span>Mais preciso</span>
+                          <span>Mais criativo</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Usage Stats */}
+                  {openaiHasKey && (
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-center">
+                        <p className="text-2xl font-bold text-blue-600">{openaiSettings.totalRequests}</p>
+                        <p className="text-sm text-gray-500">Requisições</p>
+                      </div>
+                      <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg text-center">
+                        <p className="text-2xl font-bold text-purple-600">{openaiSettings.totalTokensUsed.toLocaleString()}</p>
+                        <p className="text-sm text-gray-500">Tokens Usados</p>
+                      </div>
+                      <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg text-center">
+                        <p className="text-2xl font-bold text-emerald-600">
+                          {openaiSettings.lastUsedAt
+                            ? new Date(openaiSettings.lastUsedAt).toLocaleDateString("pt-BR")
+                            : "Nunca"}
+                        </p>
+                        <p className="text-sm text-gray-500">Último Uso</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Test AI */}
+                  {openaiSettings.enabled && openaiHasKey && (
+                    <div className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
+                      <h4 className="font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-amber-500" />
+                        Testar Análise IA
+                      </h4>
+                      <div className="space-y-3">
+                        <input
+                          type="text"
+                          value={testPrompt}
+                          onChange={(e) => setTestPrompt(e.target.value)}
+                          placeholder="Faça uma pergunta sobre seus dados... Ex: 'Qual meu faturamento hoje?'"
+                          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        />
+                        <button
+                          onClick={handleTestAI}
+                          disabled={isTestingAI}
+                          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-blue-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+                        >
+                          {isTestingAI ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Zap className="h-4 w-4" />
+                          )}
+                          {isTestingAI ? "Analisando..." : "Testar IA"}
+                        </button>
+                        {testResult && (
+                          <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                            <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{testResult}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Feature Info */}
+                  <div className="bg-gradient-to-r from-emerald-500 to-blue-500 rounded-xl p-6 text-white">
+                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                      <Sparkles className="h-5 w-5" />
+                      O que a IA pode fazer
+                    </h3>
+                    <ul className="space-y-2 text-white/90 text-sm">
+                      <li>• Análises inteligentes dos dados de vendas</li>
+                      <li>• Respostas personalizadas no Telegram e WhatsApp</li>
+                      <li>• Insights e recomendações baseadas nos seus dados</li>
+                      <li>• Comparativos e tendências automáticos</li>
+                      <li>• Relatórios resumidos em linguagem natural</li>
+                    </ul>
+                  </div>
+
+                  <button
+                    onClick={handleOpenaiSave}
+                    disabled={updateOpenaiConfigMutation.isPending}
+                    className="flex items-center gap-2 px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {updateOpenaiConfigMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Brain className="h-4 w-4" />
+                    )}
+                    Salvar Configurações
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
