@@ -17,6 +17,7 @@ import { webhookRoutes } from './modules/webhooks';
 import { whatsAppRoutes } from './modules/whatsapp';
 import { telegramRoutes } from './modules/telegram';
 import { openAIRoutes } from './modules/openai';
+import { financialRoutes } from './modules/financial';
 
 const app = express();
 
@@ -54,6 +55,7 @@ app.use('/api/ai-analysis', aiAnalysisRoutes);
 app.use('/api/whatsapp', whatsAppRoutes);
 app.use('/api/telegram', telegramRoutes);
 app.use('/api/openai', openAIRoutes);
+app.use('/api/financial', financialRoutes);
 
 // Error handling
 app.use(notFoundHandler);

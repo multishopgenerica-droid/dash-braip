@@ -23,6 +23,12 @@ model User {
   gateways      GatewayConfig[]
   refreshTokens RefreshToken[]
 
+  // Financial relations
+  expenses      Expense[]
+  employees     Employee[]
+  tools         Tool[]
+  trafficSpends TrafficSpend[]
+
   @@map("users")
 }
 
@@ -489,4 +495,228 @@ model WhatsAppChatLog {
   @@index([phoneNumber])
   @@index([createdAt])
   @@map("whatsapp_chat_logs")
+}
+
+// ==================== FINANCEIRO - ENUMS ====================
+
+enum ExpenseCategory {
+  MARKETING
+  OPERACIONAL
+  TECNOLOGIA
+  RECURSOS_HUMANOS
+  TRAFEGO
+  INFRAESTRUTURA
+  OUTROS
+}
+
+enum ExpenseStatus {
+  PENDENTE
+  PAGO
+  CANCELADO
+  VENCIDO
+}
+
+enum RecurrenceType {
+  UNICO
+  DIARIO
+  SEMANAL
+  QUINZENAL
+  MENSAL
+  TRIMESTRAL
+  SEMESTRAL
+  ANUAL
+}
+
+enum EmployeeRole {
+  GESTOR_TRAFEGO
+  COPYWRITER
+  DESIGNER
+  SUPORTE
+  DESENVOLVEDOR
+  ADMINISTRATIVO
+  VENDEDOR
+  GERENTE
+  OUTROS
+}
+
+enum EmployeeStatus {
+  ATIVO
+  INATIVO
+  FERIAS
+  AFASTADO
+}
+
+enum ToolCategory {
+  AUTOMACAO
+  EMAIL_MARKETING
+  CRM
+  DESIGN
+  VIDEO
+  HOSPEDAGEM
+  ANALYTICS
+  COMUNICACAO
+  GESTAO_PROJETOS
+  PAGAMENTOS
+  OUTROS
+}
+
+enum TrafficPlatform {
+  META_ADS
+  GOOGLE_ADS
+  TIKTOK_ADS
+  YOUTUBE_ADS
+  NATIVE_ADS
+  PINTEREST_ADS
+  LINKEDIN_ADS
+  TWITTER_ADS
+  OUTROS
+}
+
+// ==================== FINANCEIRO - GASTOS ====================
+
+model Expense {
+  id              String          @id @default(cuid())
+  userId          String
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name            String
+  description     String?
+  category        ExpenseCategory
+  status          ExpenseStatus   @default(PENDENTE)
+
+  amount          Int             // Value in cents
+  dueDate         DateTime?       // Data de vencimento
+  paidAt          DateTime?       // Data do pagamento efetivo
+
+  recurrence      RecurrenceType  @default(UNICO)
+  recurrenceEndDate DateTime?
+
+  // Optional: link to employee or tool
+  employeeId      String?
+  employee        Employee?       @relation(fields: [employeeId], references: [id])
+  toolId          String?
+  tool            Tool?           @relation(fields: [toolId], references: [id])
+
+  notes           String?         @db.Text
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([userId])
+  @@index([category])
+  @@index([status])
+  @@index([dueDate])
+  @@map("expenses")
+}
+
+// ==================== FINANCEIRO - FUNCIONARIOS ====================
+
+model Employee {
+  id              String          @id @default(cuid())
+  userId          String
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name            String
+  email           String?
+  phone           String?
+  document        String?         // CPF/CNPJ
+
+  role            EmployeeRole
+  status          EmployeeStatus  @default(ATIVO)
+
+  salary          Int             // Monthly salary in cents
+  bonus           Int             @default(0)
+  benefits        Int             @default(0)
+
+  startDate       DateTime        // Hire date
+  endDate         DateTime?       // Termination date
+
+  paymentDay      Int             @default(5)
+
+  notes           String?         @db.Text
+
+  expenses        Expense[]
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([role])
+  @@map("employees")
+}
+
+// ==================== FINANCEIRO - FERRAMENTAS ====================
+
+model Tool {
+  id              String          @id @default(cuid())
+  userId          String
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name            String
+  description     String?
+  category        ToolCategory
+
+  monthlyCost     Int             // Monthly cost in cents
+  annualCost      Int?            // Annual cost if paid yearly
+
+  recurrence      RecurrenceType  @default(MENSAL)
+  billingDate     DateTime?       // Next billing date
+
+  isActive        Boolean         @default(true)
+  loginUrl        String?
+
+  notes           String?         @db.Text
+
+  expenses        Expense[]
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([userId])
+  @@index([category])
+  @@index([isActive])
+  @@map("tools")
+}
+
+// ==================== FINANCEIRO - TRAFEGO ====================
+
+model TrafficSpend {
+  id              String          @id @default(cuid())
+  userId          String
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  platform        TrafficPlatform
+  accountId       String?
+  accountName     String?
+
+  campaignId      String?
+  campaignName    String?
+  adSetName       String?
+
+  date            DateTime        @db.Date
+
+  spend           Int             // Amount spent in cents
+  impressions     Int             @default(0)
+  clicks          Int             @default(0)
+  conversions     Int             @default(0)
+  revenue         Int             @default(0)
+
+  // Metrics
+  cpm             Float?
+  cpc             Float?
+  ctr             Float?
+  cpa             Float?
+  roas            Float?
+
+  notes           String?         @db.Text
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([userId, platform, date, campaignId])
+  @@index([userId])
+  @@index([platform])
+  @@index([date])
+  @@map("traffic_spends")
 }

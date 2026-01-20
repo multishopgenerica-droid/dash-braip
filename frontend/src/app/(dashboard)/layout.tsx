@@ -7,6 +7,7 @@ import { Topbar } from "@/components/layout/topbar";
 import { useAuthStore } from "@/stores/auth.store";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { Toaster } from "sonner";
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const { collapsed } = useSidebar();
@@ -74,6 +75,12 @@ export default function DashboardLayout({
   return (
     <SidebarProvider>
       <DashboardContent>{children}</DashboardContent>
+      <Toaster
+        position="top-right"
+        theme="dark"
+        richColors
+        closeButton
+      />
     </SidebarProvider>
   );
 }

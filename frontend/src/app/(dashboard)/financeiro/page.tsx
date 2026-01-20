@@ -1,0 +1,269 @@
+'use client';
+
+import { useQuery } from '@tanstack/react-query';
+import { financialService, formatCurrency, MacroView, MonthlyTrend, SummaryCards } from '@/services/financial.service';
+import {
+  DollarSign,
+  TrendingUp,
+  TrendingDown,
+  Users,
+  Wrench,
+  Receipt,
+  Target,
+  ArrowUpRight,
+  ArrowDownRight,
+} from 'lucide-react';
+
+function StatCard({
+  title,
+  value,
+  icon: Icon,
+  trend,
+  trendLabel,
+  variant = 'default',
+}: {
+  title: string;
+  value: string;
+  icon: React.ElementType;
+  trend?: number;
+  trendLabel?: string;
+  variant?: 'default' | 'success' | 'danger' | 'warning';
+}) {
+  const variantStyles = {
+    default: 'bg-zinc-800/50 border-zinc-700',
+    success: 'bg-emerald-900/20 border-emerald-700/50',
+    danger: 'bg-red-900/20 border-red-700/50',
+    warning: 'bg-amber-900/20 border-amber-700/50',
+  };
+
+  return (
+    <div className={`rounded-xl border p-6 ${variantStyles[variant]}`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-zinc-400">{title}</p>
+          <p className="mt-2 text-2xl font-bold text-white">{value}</p>
+          {trend !== undefined && (
+            <div className="mt-2 flex items-center gap-1">
+              {trend >= 0 ? (
+                <ArrowUpRight className="h-4 w-4 text-emerald-400" />
+              ) : (
+                <ArrowDownRight className="h-4 w-4 text-red-400" />
+              )}
+              <span className={trend >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                {Math.abs(trend).toFixed(1)}%
+              </span>
+              {trendLabel && <span className="text-zinc-500 text-sm">{trendLabel}</span>}
+            </div>
+          )}
+        </div>
+        <div className="rounded-full bg-zinc-700/50 p-3">
+          <Icon className="h-6 w-6 text-zinc-300" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CostBreakdownCard({ macroView }: { macroView: MacroView }) {
+  const costs = [
+    { label: 'Despesas', value: macroView.costs.expenses, color: 'bg-blue-500' },
+    { label: 'Folha de Pagamento', value: macroView.costs.payroll, color: 'bg-purple-500' },
+    { label: 'Ferramentas', value: macroView.costs.tools, color: 'bg-amber-500' },
+    { label: 'Tráfego', value: macroView.costs.traffic, color: 'bg-rose-500' },
+  ];
+
+  const total = macroView.costs.total;
+
+  return (
+    <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 p-6">
+      <h3 className="text-lg font-semibold text-white mb-4">Breakdown de Custos</h3>
+      <div className="space-y-4">
+        {costs.map((cost) => {
+          const percentage = total > 0 ? (cost.value / total) * 100 : 0;
+          return (
+            <div key={cost.label}>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-zinc-400">{cost.label}</span>
+                <span className="text-white">{formatCurrency(cost.value)}</span>
+              </div>
+              <div className="h-2 bg-zinc-700 rounded-full overflow-hidden">
+                <div
+                  className={`h-full ${cost.color} rounded-full`}
+                  style={{ width: `${percentage}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-4 pt-4 border-t border-zinc-700">
+        <div className="flex justify-between">
+          <span className="text-zinc-400 font-medium">Total</span>
+          <span className="text-white font-bold">{formatCurrency(total)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TrendChart({ trends }: { trends: MonthlyTrend[] }) {
+  const maxRevenue = Math.max(...trends.map((t) => t.revenue));
+
+  return (
+    <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 p-6">
+      <h3 className="text-lg font-semibold text-white mb-4">Tendência Mensal</h3>
+      <div className="flex items-end gap-2 h-48">
+        {trends.map((trend) => {
+          const height = maxRevenue > 0 ? (trend.revenue / maxRevenue) * 100 : 0;
+          const profitPercentage = trend.revenue > 0 ? (trend.profit / trend.revenue) * 100 : 0;
+
+          return (
+            <div key={trend.month} className="flex-1 flex flex-col items-center">
+              <div
+                className={`w-full rounded-t ${profitPercentage >= 0 ? 'bg-emerald-500' : 'bg-red-500'}`}
+                style={{ height: `${height}%`, minHeight: '4px' }}
+                title={`${formatCurrency(trend.revenue)} (Lucro: ${formatCurrency(trend.profit)})`}
+              />
+              <span className="text-xs text-zinc-500 mt-2">
+                {trend.month.split('-')[1]}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex justify-center gap-4 mt-4">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded bg-emerald-500" />
+          <span className="text-xs text-zinc-400">Lucro</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded bg-red-500" />
+          <span className="text-xs text-zinc-400">Prejuízo</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function FinanceiroPage() {
+  const { data: macroView, isLoading: loadingMacro } = useQuery({
+    queryKey: ['financial', 'macro'],
+    queryFn: () => financialService.getMacroView(),
+  });
+
+  const { data: trends, isLoading: loadingTrends } = useQuery({
+    queryKey: ['financial', 'trends'],
+    queryFn: () => financialService.getMonthlyTrend(6),
+  });
+
+  const { data: summary, isLoading: loadingSummary } = useQuery({
+    queryKey: ['financial', 'summary'],
+    queryFn: () => financialService.getSummaryCards(),
+  });
+
+  const isLoading = loadingMacro || loadingTrends || loadingSummary;
+
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <div className="animate-pulse space-y-6">
+          <div className="h-8 bg-zinc-800 rounded w-1/4" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-32 bg-zinc-800 rounded-xl" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const profitMargin = macroView ? parseFloat(macroView.profit.margin) : 0;
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Financeiro</h1>
+          <p className="text-zinc-400">Visão macro da operação</p>
+        </div>
+      </div>
+
+      {/* Main Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          title="Faturamento"
+          value={macroView ? formatCurrency(macroView.revenue.total) : 'R$ 0,00'}
+          icon={DollarSign}
+          variant="default"
+        />
+        <StatCard
+          title="Custos Totais"
+          value={macroView ? formatCurrency(macroView.costs.total) : 'R$ 0,00'}
+          icon={TrendingDown}
+          variant="danger"
+        />
+        <StatCard
+          title="Lucro Líquido"
+          value={macroView ? formatCurrency(macroView.profit.net) : 'R$ 0,00'}
+          icon={macroView && macroView.profit.net >= 0 ? TrendingUp : TrendingDown}
+          variant={macroView && macroView.profit.net >= 0 ? 'success' : 'danger'}
+        />
+        <StatCard
+          title="Margem de Lucro"
+          value={`${profitMargin.toFixed(1)}%`}
+          icon={Target}
+          variant={profitMargin >= 20 ? 'success' : profitMargin >= 0 ? 'warning' : 'danger'}
+        />
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 p-4 flex items-center gap-4">
+          <div className="rounded-full bg-purple-900/50 p-3">
+            <Users className="h-5 w-5 text-purple-400" />
+          </div>
+          <div>
+            <p className="text-sm text-zinc-400">Funcionários Ativos</p>
+            <p className="text-xl font-bold text-white">{summary?.activeEmployees || 0}</p>
+          </div>
+        </div>
+        <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 p-4 flex items-center gap-4">
+          <div className="rounded-full bg-amber-900/50 p-3">
+            <Wrench className="h-5 w-5 text-amber-400" />
+          </div>
+          <div>
+            <p className="text-sm text-zinc-400">Ferramentas Ativas</p>
+            <p className="text-xl font-bold text-white">{summary?.activeTools || 0}</p>
+          </div>
+        </div>
+        <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 p-4 flex items-center gap-4">
+          <div className="rounded-full bg-rose-900/50 p-3">
+            <Receipt className="h-5 w-5 text-rose-400" />
+          </div>
+          <div>
+            <p className="text-sm text-zinc-400">Despesas Pendentes</p>
+            <p className="text-xl font-bold text-white">{summary?.pendingExpenses || 0}</p>
+          </div>
+        </div>
+        <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 p-4 flex items-center gap-4">
+          <div className="rounded-full bg-blue-900/50 p-3">
+            <Target className="h-5 w-5 text-blue-400" />
+          </div>
+          <div>
+            <p className="text-sm text-zinc-400">Tráfego do Mês</p>
+            <p className="text-xl font-bold text-white">
+              {formatCurrency(summary?.monthlyTrafficSpend || 0)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {macroView && <CostBreakdownCard macroView={macroView} />}
+        {trends && <TrendChart trends={trends} />}
+      </div>
+    </div>
+  );
+}
