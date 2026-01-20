@@ -41,13 +41,24 @@ export function Topbar({
   // Load theme from localStorage on mount
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
+    let shouldBeDark = false;
+
     if (savedTheme === "dark") {
-      setIsDark(true);
+      shouldBeDark = true;
     } else if (savedTheme === "light") {
-      setIsDark(false);
+      shouldBeDark = false;
     } else {
       // System preference
-      setIsDark(window.matchMedia("(prefers-color-scheme: dark)").matches);
+      shouldBeDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    }
+
+    setIsDark(shouldBeDark);
+
+    // Apply theme class to document
+    if (shouldBeDark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
     }
   }, []);
 

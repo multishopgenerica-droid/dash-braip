@@ -23,8 +23,21 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Script to prevent flash of wrong theme
+  const themeScript = `
+    (function() {
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+      }
+    })();
+  `;
+
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body className={inter.className}>
         <Providers>{children}</Providers>
       </body>
