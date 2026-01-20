@@ -42,12 +42,18 @@ function EmployeeModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!formData.startDate) {
+      toast.error('Data de início é obrigatória');
+      return;
+    }
+
     onSave({
       ...formData,
       salary: Math.round(formData.salary * 100),
       bonus: Math.round(formData.bonus * 100),
       benefits: Math.round(formData.benefits * 100),
-      startDate: formData.startDate ? new Date(formData.startDate).toISOString() : undefined,
+      startDate: new Date(formData.startDate + 'T12:00:00').toISOString(),
     });
   };
 
@@ -257,7 +263,11 @@ export default function FuncionariosPage() {
       toast.success('Funcionário criado com sucesso!');
       setShowModal(false);
     },
-    onError: () => toast.error('Erro ao criar funcionário'),
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { error?: string; details?: Array<{ message: string }> } } };
+      const message = err.response?.data?.details?.[0]?.message || err.response?.data?.error || 'Erro ao criar funcionário';
+      toast.error(message);
+    },
   });
 
   const updateMutation = useMutation({
@@ -270,7 +280,11 @@ export default function FuncionariosPage() {
       setShowModal(false);
       setSelectedEmployee(null);
     },
-    onError: () => toast.error('Erro ao atualizar funcionário'),
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { error?: string; details?: Array<{ message: string }> } } };
+      const message = err.response?.data?.details?.[0]?.message || err.response?.data?.error || 'Erro ao atualizar funcionário';
+      toast.error(message);
+    },
   });
 
   const deleteMutation = useMutation({

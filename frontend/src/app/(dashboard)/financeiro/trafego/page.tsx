@@ -37,11 +37,17 @@ function TrafficModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!formData.date) {
+      toast.error('Data é obrigatória');
+      return;
+    }
+
     onSave({
       ...formData,
       spend: Math.round(formData.spend * 100),
       revenue: Math.round(formData.revenue * 100),
-      date: new Date(formData.date).toISOString(),
+      date: new Date(formData.date + 'T12:00:00').toISOString(),
     });
   };
 
@@ -221,7 +227,11 @@ export default function TrafegoPage() {
       toast.success('Gasto de tráfego criado com sucesso!');
       setShowModal(false);
     },
-    onError: () => toast.error('Erro ao criar gasto de tráfego'),
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { error?: string; details?: Array<{ message: string }> } } };
+      const message = err.response?.data?.details?.[0]?.message || err.response?.data?.error || 'Erro ao criar gasto de tráfego';
+      toast.error(message);
+    },
   });
 
   const updateMutation = useMutation({
@@ -234,7 +244,11 @@ export default function TrafegoPage() {
       setShowModal(false);
       setSelectedTraffic(null);
     },
-    onError: () => toast.error('Erro ao atualizar gasto de tráfego'),
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { error?: string; details?: Array<{ message: string }> } } };
+      const message = err.response?.data?.details?.[0]?.message || err.response?.data?.error || 'Erro ao atualizar gasto de tráfego';
+      toast.error(message);
+    },
   });
 
   const deleteMutation = useMutation({

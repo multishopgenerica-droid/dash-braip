@@ -45,7 +45,7 @@ function ToolModal({
       ...formData,
       monthlyCost: Math.round(formData.monthlyCost * 100),
       annualCost: formData.annualCost ? Math.round(formData.annualCost * 100) : undefined,
-      billingDate: formData.billingDate ? new Date(formData.billingDate).toISOString() : undefined,
+      billingDate: formData.billingDate ? new Date(formData.billingDate + 'T12:00:00').toISOString() : undefined,
       loginUrl: formData.loginUrl || undefined,
     });
   };
@@ -242,7 +242,11 @@ export default function FerramentasPage() {
       toast.success('Ferramenta criada com sucesso!');
       setShowModal(false);
     },
-    onError: () => toast.error('Erro ao criar ferramenta'),
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { error?: string; details?: Array<{ message: string }> } } };
+      const message = err.response?.data?.details?.[0]?.message || err.response?.data?.error || 'Erro ao criar ferramenta';
+      toast.error(message);
+    },
   });
 
   const updateMutation = useMutation({
@@ -255,7 +259,11 @@ export default function FerramentasPage() {
       setShowModal(false);
       setSelectedTool(null);
     },
-    onError: () => toast.error('Erro ao atualizar ferramenta'),
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { error?: string; details?: Array<{ message: string }> } } };
+      const message = err.response?.data?.details?.[0]?.message || err.response?.data?.error || 'Erro ao atualizar ferramenta';
+      toast.error(message);
+    },
   });
 
   const deleteMutation = useMutation({

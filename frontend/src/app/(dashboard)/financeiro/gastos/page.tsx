@@ -45,7 +45,7 @@ function ExpenseModal({
     onSave({
       ...formData,
       amount: Math.round(formData.amount * 100),
-      dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : undefined,
+      dueDate: formData.dueDate ? new Date(formData.dueDate + 'T12:00:00').toISOString() : undefined,
     });
   };
 
@@ -213,7 +213,11 @@ export default function GastosPage() {
       toast.success('Gasto criado com sucesso!');
       setShowModal(false);
     },
-    onError: () => toast.error('Erro ao criar gasto'),
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { error?: string; details?: Array<{ message: string }> } } };
+      const message = err.response?.data?.details?.[0]?.message || err.response?.data?.error || 'Erro ao criar gasto';
+      toast.error(message);
+    },
   });
 
   const updateMutation = useMutation({
@@ -225,7 +229,11 @@ export default function GastosPage() {
       setShowModal(false);
       setSelectedExpense(null);
     },
-    onError: () => toast.error('Erro ao atualizar gasto'),
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { error?: string; details?: Array<{ message: string }> } } };
+      const message = err.response?.data?.details?.[0]?.message || err.response?.data?.error || 'Erro ao atualizar gasto';
+      toast.error(message);
+    },
   });
 
   const deleteMutation = useMutation({
