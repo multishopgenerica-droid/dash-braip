@@ -100,7 +100,7 @@ export class EmployeeService {
     const result = await prisma.employee.aggregate({
       where: {
         userId,
-        status: 'ATIVO',
+        status: { in: ['ATIVO', 'FERIAS', 'AFASTADO'] },
       },
       _sum: {
         salary: true,

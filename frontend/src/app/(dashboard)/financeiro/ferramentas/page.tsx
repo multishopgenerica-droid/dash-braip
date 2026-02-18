@@ -21,10 +21,12 @@ function ToolModal({
   tool,
   onClose,
   onSave,
+  isSaving,
 }: {
   tool?: Tool | null;
   onClose: () => void;
   onSave: (data: Partial<Tool>) => void;
+  isSaving?: boolean;
 }) {
   const [formData, setFormData] = useState({
     name: tool?.name || '',
@@ -198,9 +200,10 @@ function ToolModal({
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-white transition"
+              disabled={isSaving}
+              className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Salvar
+              {isSaving ? 'Salvando...' : 'Salvar'}
             </button>
           </div>
         </form>
@@ -290,9 +293,12 @@ export default function FerramentasPage() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Tem certeza que deseja excluir esta ferramenta?')) {
-      deleteMutation.mutate(id);
-    }
+    toast('Tem certeza que deseja excluir esta ferramenta?', {
+      action: {
+        label: 'Excluir',
+        onClick: () => deleteMutation.mutate(id),
+      },
+    });
   };
 
   return (
@@ -414,7 +420,8 @@ export default function FerramentasPage() {
                   </button>
                   <button
                     onClick={() => handleDelete(tool.id)}
-                    className="p-1.5 text-zinc-400 hover:text-red-400 transition"
+                    disabled={deleteMutation.isPending}
+                    className="p-1.5 text-zinc-400 hover:text-red-400 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -503,6 +510,7 @@ export default function FerramentasPage() {
             setSelectedTool(null);
           }}
           onSave={handleSave}
+          isSaving={createMutation.isPending || updateMutation.isPending}
         />
       )}
     </div>

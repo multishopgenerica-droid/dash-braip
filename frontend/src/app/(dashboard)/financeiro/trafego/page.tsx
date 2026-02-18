@@ -23,10 +23,12 @@ function TrafficModal({
   traffic,
   onClose,
   onSave,
+  isSaving,
 }: {
   traffic?: TrafficSpend | null;
   onClose: () => void;
   onSave: (data: Partial<TrafficSpend>) => void;
+  isSaving?: boolean;
 }) {
   const [formData, setFormData] = useState({
     platform: traffic?.platform || 'META_ADS',
@@ -190,9 +192,10 @@ function TrafficModal({
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-white transition"
+              disabled={isSaving}
+              className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Salvar
+              {isSaving ? 'Salvando...' : 'Salvar'}
             </button>
           </div>
         </form>
@@ -210,7 +213,7 @@ export default function TrafegoPage() {
     page: 1,
   });
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['traffic', filters],
     queryFn: () =>
       financialService.listTraffic({
@@ -280,9 +283,12 @@ export default function TrafegoPage() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este gasto de tráfego?')) {
-      deleteMutation.mutate(id);
-    }
+    toast('Tem certeza que deseja excluir este gasto de tráfego?', {
+      action: {
+        label: 'Excluir',
+        onClick: () => deleteMutation.mutate(id),
+      },
+    });
   };
 
   // Calculate totals from filtered table data (respects platform filter)
@@ -424,6 +430,12 @@ export default function TrafegoPage() {
                   Carregando...
                 </td>
               </tr>
+            ) : isError ? (
+              <tr>
+                <td colSpan={7} className="px-6 py-12 text-center text-red-400">
+                  Erro ao carregar gastos de tráfego. Tente novamente mais tarde.
+                </td>
+              </tr>
             ) : data?.data.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-6 py-12 text-center text-zinc-400">
@@ -481,7 +493,8 @@ export default function TrafegoPage() {
                         </button>
                         <button
                           onClick={() => handleDelete(traffic.id)}
-                          className="p-2 text-zinc-400 hover:text-red-400 transition"
+                          disabled={deleteMutation.isPending}
+                          className="p-2 text-zinc-400 hover:text-red-400 transition disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -496,23 +509,51 @@ export default function TrafegoPage() {
       </div>
 
       {/* Pagination */}
-      {data && data.pagination.totalPages > 1 && (
-        <div className="flex justify-center gap-2">
-          {[...Array(data.pagination.totalPages)].map((_, i) => (
+      {data && data.pagination.totalPages > 1 && (() => {
+        const totalPages = data.pagination.totalPages;
+        const currentPage = filters.page;
+        const maxVisible = 5;
+        let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+        let endPage = startPage + maxVisible - 1;
+        if (endPage > totalPages) {
+          endPage = totalPages;
+          startPage = Math.max(1, endPage - maxVisible + 1);
+        }
+        const pages = [];
+        for (let i = startPage; i <= endPage; i++) pages.push(i);
+
+        return (
+          <div className="flex justify-center gap-2">
             <button
-              key={i}
-              onClick={() => setFilters({ ...filters, page: i + 1 })}
-              className={`px-3 py-1 rounded ${
-                filters.page === i + 1
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-              }`}
+              onClick={() => setFilters({ ...filters, page: currentPage - 1 })}
+              disabled={currentPage === 1}
+              className="px-3 py-1 rounded bg-zinc-800 text-zinc-400 hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {i + 1}
+              Anterior
             </button>
-          ))}
-        </div>
-      )}
+            {pages.map((page) => (
+              <button
+                key={page}
+                onClick={() => setFilters({ ...filters, page })}
+                className={`px-3 py-1 rounded ${
+                  currentPage === page
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                }`}
+              >
+                {page}
+              </button>
+            ))}
+            <button
+              onClick={() => setFilters({ ...filters, page: currentPage + 1 })}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 rounded bg-zinc-800 text-zinc-400 hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Proximo
+            </button>
+          </div>
+        );
+      })()}
 
       {showModal && (
         <TrafficModal
@@ -522,6 +563,7 @@ export default function TrafegoPage() {
             setSelectedTraffic(null);
           }}
           onSave={handleSave}
+          isSaving={createMutation.isPending || updateMutation.isPending}
         />
       )}
     </div>

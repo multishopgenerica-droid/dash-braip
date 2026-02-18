@@ -270,7 +270,7 @@ export default function FuncionariosPage() {
     page: 1,
   });
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['employees', filters],
     queryFn: () =>
       financialService.listEmployees({
@@ -283,6 +283,7 @@ export default function FuncionariosPage() {
   const { data: payroll } = useQuery({
     queryKey: ['payroll'],
     queryFn: () => financialService.getPayroll(),
+    staleTime: 5 * 60 * 1000,
   });
 
   const createMutation = useMutation({
@@ -342,9 +343,12 @@ export default function FuncionariosPage() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este funcionário?')) {
-      deleteMutation.mutate(id);
-    }
+    toast('Tem certeza que deseja excluir este funcionário?', {
+      action: {
+        label: 'Excluir',
+        onClick: () => deleteMutation.mutate(id),
+      },
+    });
   };
 
   const getStatusColor = (status: EmployeeStatus) => {
@@ -452,6 +456,12 @@ export default function FuncionariosPage() {
                   Carregando...
                 </td>
               </tr>
+            ) : isError ? (
+              <tr>
+                <td colSpan={6} className="px-6 py-12 text-center text-red-400">
+                  Erro ao carregar funcionários. Tente novamente mais tarde.
+                </td>
+              </tr>
             ) : data?.data.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-6 py-12 text-center text-zinc-400">
@@ -513,23 +523,51 @@ export default function FuncionariosPage() {
       </div>
 
       {/* Pagination */}
-      {data && data.pagination.totalPages > 1 && (
-        <div className="flex justify-center gap-2">
-          {[...Array(data.pagination.totalPages)].map((_, i) => (
+      {data && data.pagination.totalPages > 1 && (() => {
+        const totalPages = data.pagination.totalPages;
+        const currentPage = filters.page;
+        const maxVisible = 5;
+        let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+        let endPage = startPage + maxVisible - 1;
+        if (endPage > totalPages) {
+          endPage = totalPages;
+          startPage = Math.max(1, endPage - maxVisible + 1);
+        }
+        const pages = [];
+        for (let i = startPage; i <= endPage; i++) pages.push(i);
+
+        return (
+          <div className="flex justify-center gap-2">
             <button
-              key={i}
-              onClick={() => setFilters({ ...filters, page: i + 1 })}
-              className={`px-3 py-1 rounded ${
-                filters.page === i + 1
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-              }`}
+              onClick={() => setFilters({ ...filters, page: currentPage - 1 })}
+              disabled={currentPage === 1}
+              className="px-3 py-1 rounded bg-zinc-800 text-zinc-400 hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {i + 1}
+              Anterior
             </button>
-          ))}
-        </div>
-      )}
+            {pages.map((page) => (
+              <button
+                key={page}
+                onClick={() => setFilters({ ...filters, page })}
+                className={`px-3 py-1 rounded ${
+                  currentPage === page
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                }`}
+              >
+                {page}
+              </button>
+            ))}
+            <button
+              onClick={() => setFilters({ ...filters, page: currentPage + 1 })}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 rounded bg-zinc-800 text-zinc-400 hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Proximo
+            </button>
+          </div>
+        );
+      })()}
 
       {showModal && (
         <EmployeeModal

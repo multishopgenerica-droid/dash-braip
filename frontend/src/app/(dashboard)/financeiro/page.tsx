@@ -106,8 +106,10 @@ function CostBreakdownCard({ macroView }: { macroView: MacroView }) {
   );
 }
 
+const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
 function TrendChart({ trends }: { trends: MonthlyTrend[] }) {
-  const maxRevenue = Math.max(...trends.map((t) => t.revenue));
+  const maxRevenue = trends.length > 0 ? Math.max(...trends.map((t) => t.revenue)) : 0;
 
   return (
     <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 p-6">
@@ -116,6 +118,7 @@ function TrendChart({ trends }: { trends: MonthlyTrend[] }) {
         {trends.map((trend) => {
           const height = maxRevenue > 0 ? (trend.revenue / maxRevenue) * 100 : 0;
           const profitPercentage = trend.revenue > 0 ? (trend.profit / trend.revenue) * 100 : 0;
+          const monthIndex = parseInt(trend.month.split('-')[1], 10) - 1;
 
           return (
             <div key={trend.month} className="flex-1 flex flex-col items-center">
@@ -125,7 +128,7 @@ function TrendChart({ trends }: { trends: MonthlyTrend[] }) {
                 title={`${formatCurrency(trend.revenue)} (Lucro: ${formatCurrency(trend.profit)})`}
               />
               <span className="text-xs text-zinc-500 mt-2">
-                {trend.month.split('-')[1]}
+                {MONTH_NAMES[monthIndex] || trend.month.split('-')[1]}
               </span>
             </div>
           );

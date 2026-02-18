@@ -379,6 +379,7 @@ export default function GastosPage() {
               <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase">Categoria</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase">Status</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase">Valor</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase">Recorrência</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase">Vencimento</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-zinc-400 uppercase">Ações</th>
             </tr>
@@ -386,19 +387,19 @@ export default function GastosPage() {
           <tbody className="divide-y divide-zinc-700">
             {isLoading ? (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-zinc-400">
+                <td colSpan={7} className="px-6 py-12 text-center text-zinc-400">
                   Carregando...
                 </td>
               </tr>
             ) : isError ? (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-red-400">
+                <td colSpan={7} className="px-6 py-12 text-center text-red-400">
                   Erro ao carregar gastos. Tente novamente mais tarde.
                 </td>
               </tr>
             ) : data?.data.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-zinc-400">
+                <td colSpan={7} className="px-6 py-12 text-center text-zinc-400">
                   Nenhum gasto encontrado
                 </td>
               </tr>
@@ -421,6 +422,9 @@ export default function GastosPage() {
                   </td>
                   <td className="px-6 py-4 text-white font-medium">
                     {formatCurrency(expense.amount)}
+                  </td>
+                  <td className="px-6 py-4 text-zinc-300">
+                    {RECURRENCE_LABELS[expense.recurrence]}
                   </td>
                   <td className="px-6 py-4 text-zinc-300">
                     {expense.dueDate
