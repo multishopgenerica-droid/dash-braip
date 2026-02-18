@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   TrendingUp,
@@ -15,6 +15,9 @@ import {
   Users,
   Filter,
   ChevronDown,
+  Search,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   LineChart,
@@ -192,7 +195,7 @@ function SalesHeatmap({ data }: { data: HeatmapData[] }) {
 }
 
 // ==================== AFFILIATE TABLE ====================
-function AffiliateTable({ affiliates, currentLabel }: { affiliates: Affiliate[]; currentLabel: string }) {
+function AffiliateTable({ affiliates, currentLabel, page = 1, limit = 20 }: { affiliates: Affiliate[]; currentLabel: string; page?: number; limit?: number }) {
   if (affiliates.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
@@ -214,16 +217,16 @@ function AffiliateTable({ affiliates, currentLabel }: { affiliates: Affiliate[];
           </tr>
         </thead>
         <tbody>
-          {affiliates.slice(0, 10).map((affiliate, index) => (
+          {affiliates.map((affiliate, index) => (
             <tr key={affiliate.id} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
               <td className="py-3 px-4">
                 <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
-                  index === 0 ? "bg-yellow-100 text-yellow-700" :
-                  index === 1 ? "bg-gray-100 text-gray-700" :
-                  index === 2 ? "bg-orange-100 text-orange-700" :
+                  (page - 1) * limit + index === 0 ? "bg-yellow-100 text-yellow-700" :
+                  (page - 1) * limit + index === 1 ? "bg-gray-100 text-gray-700" :
+                  (page - 1) * limit + index === 2 ? "bg-orange-100 text-orange-700" :
                   "bg-gray-50 text-gray-500"
                 }`}>
-                  {index + 1}
+                  {(page - 1) * limit + index + 1}
                 </span>
               </td>
               <td className="py-3 px-4">
@@ -329,6 +332,18 @@ export default function RelatoriosPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
+  const [affiliatePage, setAffiliatePage] = useState(1);
+  const [affiliateLimit, setAffiliateLimit] = useState(20);
+  const [affiliateSearch, setAffiliateSearch] = useState("");
+  const [affiliateSearchDebounced, setAffiliateSearchDebounced] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAffiliateSearchDebounced(affiliateSearch);
+      setAffiliatePage(1);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [affiliateSearch]);
 
   const today = new Date();
   const yesterday = subDays(today, 1);
@@ -474,12 +489,15 @@ export default function RelatoriosPage() {
 
   // Affiliates data
   const { data: affiliatesData, isLoading: isLoadingAffiliates } = useQuery({
-    queryKey: ["affiliates", selectedComparison, customCurrentStart, customCurrentEnd, selectedGateway],
+    queryKey: ["affiliates", selectedComparison, customCurrentStart, customCurrentEnd, selectedGateway, affiliatePage, affiliateLimit, affiliateSearchDebounced],
     queryFn: () =>
       analyticsService.getAffiliates({
         startDate: format(dateRanges.current.start, "yyyy-MM-dd"),
         endDate: format(dateRanges.current.end, "yyyy-MM-dd"),
         gatewayId: selectedGateway || undefined,
+        page: affiliatePage,
+        limit: affiliateLimit,
+        search: affiliateSearchDebounced || undefined,
       }),
   });
 
@@ -835,15 +853,77 @@ export default function RelatoriosPage() {
                 )}
               </div>
             </div>
+
+            {/* Search + Items per page */}
+            <div className="flex flex-col sm:flex-row gap-3 mb-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar afiliado por nome..."
+                  value={affiliateSearch}
+                  onChange={(e) => setAffiliateSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+              <select
+                value={affiliateLimit}
+                onChange={(e) => {
+                  setAffiliateLimit(Number(e.target.value));
+                  setAffiliatePage(1);
+                }}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+              >
+                <option value={10}>10 por página</option>
+                <option value={20}>20 por página</option>
+                <option value={50}>50 por página</option>
+                <option value={100}>100 por página</option>
+              </select>
+            </div>
+
             {isLoadingAffiliates ? (
               <div className="flex items-center justify-center h-48">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
               </div>
             ) : (
-              <AffiliateTable
-                affiliates={affiliatesData?.affiliates || []}
-                currentLabel={dateRanges.currentLabel}
-              />
+              <>
+                <AffiliateTable
+                  affiliates={affiliatesData?.affiliates || []}
+                  currentLabel={dateRanges.currentLabel}
+                  page={affiliatePage}
+                  limit={affiliateLimit}
+                />
+
+                {/* Pagination Controls */}
+                {affiliatesData?.pagination && affiliatesData.pagination.totalPages > 1 && (
+                  <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <p className="text-sm text-gray-500">
+                      Exibindo {((affiliatePage - 1) * affiliateLimit) + 1}-{Math.min(affiliatePage * affiliateLimit, affiliatesData.pagination.totalItems)} de {affiliatesData.pagination.totalItems} afiliados
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setAffiliatePage(p => Math.max(1, p - 1))}
+                        disabled={affiliatePage === 1}
+                        className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        Anterior
+                      </button>
+                      <span className="text-sm text-gray-600 dark:text-gray-400 px-2">
+                        {affiliatePage} / {affiliatesData.pagination.totalPages}
+                      </span>
+                      <button
+                        onClick={() => setAffiliatePage(p => Math.min(affiliatesData.pagination!.totalPages, p + 1))}
+                        disabled={affiliatePage >= affiliatesData.pagination.totalPages}
+                        className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                      >
+                        Próximo
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
 

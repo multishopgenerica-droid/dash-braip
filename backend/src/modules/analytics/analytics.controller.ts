@@ -104,7 +104,10 @@ export async function getAffiliates(
     const gatewayId = req.query.gatewayId as string | undefined;
     const startDate = req.query.startDate as string | undefined;
     const endDate = req.query.endDate as string | undefined;
-    const data = await analyticsService.getAffiliateStats(req.user!.id, gatewayId, { startDate, endDate });
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+    const search = req.query.search as string | undefined;
+    const data = await analyticsService.getAffiliateStats(req.user!.id, gatewayId, { startDate, endDate, page, limit, search });
 
     res.json({
       success: true,

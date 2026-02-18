@@ -7,6 +7,9 @@ export interface AnalyticsFilter {
   endDate?: string;
   gatewayId?: string;
   productKey?: string;
+  page?: number;
+  limit?: number;
+  search?: string;
 }
 
 export interface SalesByPeriod {
@@ -53,6 +56,12 @@ export interface AffiliateStats {
     totalSales: number;
     totalRevenue: number;
     totalCommission: number;
+  };
+  pagination?: {
+    page: number;
+    limit: number;
+    totalItems: number;
+    totalPages: number;
   };
 }
 
@@ -175,6 +184,9 @@ export const analyticsService = {
     if (filters?.gatewayId) params.gatewayId = filters.gatewayId;
     if (filters?.startDate) params.startDate = filters.startDate;
     if (filters?.endDate) params.endDate = filters.endDate;
+    if (filters?.page) params.page = String(filters.page);
+    if (filters?.limit) params.limit = String(filters.limit);
+    if (filters?.search) params.search = filters.search;
     const response = await api.get("/api/analytics/affiliates", { params });
     return response.data.data;
   },

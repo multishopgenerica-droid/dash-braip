@@ -7,6 +7,9 @@ interface DateFilter {
   startDate?: string;
   endDate?: string;
   productKey?: string;
+  page?: number;
+  limit?: number;
+  search?: string;
 }
 
 interface DashboardMetrics {
@@ -405,8 +408,19 @@ export async function getAffiliateStats(
   });
 
   if (!gateway) {
-    return { affiliates: [], summary: { totalAffiliates: 0, totalSales: 0, totalRevenue: 0, totalCommission: 0 } };
+    const page = dateFilter?.page ?? 1;
+    const limit = dateFilter?.limit ?? 20;
+    return {
+      affiliates: [],
+      summary: { totalAffiliates: 0, totalSales: 0, totalRevenue: 0, totalCommission: 0 },
+      pagination: { page, limit, totalItems: 0, totalPages: 0 },
+    };
   }
+
+  const page = dateFilter?.page ?? 1;
+  const limit = dateFilter?.limit ?? 20;
+  const search = dateFilter?.search;
+  const offset = (page - 1) * limit;
 
   // Build date condition for raw query using parameterized queries
   const hasDateFilter = !!(dateFilter?.startDate && dateFilter?.endDate);
@@ -414,19 +428,37 @@ export async function getAffiliateStats(
     ? `AND s."transCreateDate" >= $2::timestamp AND s."transCreateDate" <= $3::timestamp`
     : '';
 
-  const queryParams: (string | Date)[] = [gateway.id];
+  // Build query params dynamically with positional parameters
+  const queryParams: (string | number)[] = [gateway.id];
+  let nextParam = 2;
+
   if (hasDateFilter) {
     queryParams.push(dateFilter!.startDate + ' 00:00:00', dateFilter!.endDate + ' 23:59:59');
+    nextParam = 4;
   }
 
+  // Search condition for affiliate_name
+  let searchCondition = '';
+  if (search) {
+    searchCondition = `WHERE affiliate_name ILIKE $${nextParam}`;
+    queryParams.push(`%${search}%`);
+    nextParam++;
+  }
+
+  // Limit and offset params
+  const limitParam = `$${nextParam}`;
+  const offsetParam = `$${nextParam + 1}`;
+  queryParams.push(limit, offset);
+
   // Query to get affiliate stats from sales with commissions
-  // This extracts affiliate info from the commissions JSON field
+  // Uses COUNT(*) OVER() to get total count in the same query
   const affiliateQuery = await prisma.$queryRawUnsafe<Array<{
     affiliate_name: string;
     affiliate_email: string | null;
     total_sales: bigint;
     total_revenue: bigint;
     total_commission: bigint;
+    total_count: bigint;
   }>>(
     `WITH affiliate_sales AS (
       SELECT
@@ -441,23 +473,29 @@ export async function getAffiliateStats(
         AND s."transStatusCode" = 2
         AND c->>'type' = 'Afiliado'
         ${dateCondition}
+    ),
+    affiliate_grouped AS (
+      SELECT
+        affiliate_name,
+        affiliate_email,
+        COUNT(*)::bigint as total_sales,
+        SUM("transValue")::bigint as total_revenue,
+        SUM(commission_value)::bigint as total_commission
+      FROM affiliate_sales
+      WHERE affiliate_name IS NOT NULL
+      GROUP BY affiliate_name, affiliate_email
     )
-    SELECT
-      affiliate_name,
-      affiliate_email,
-      COUNT(*)::bigint as total_sales,
-      SUM("transValue")::bigint as total_revenue,
-      SUM(commission_value)::bigint as total_commission
-    FROM affiliate_sales
-    WHERE affiliate_name IS NOT NULL
-    GROUP BY affiliate_name, affiliate_email
+    SELECT affiliate_name, affiliate_email, total_sales, total_revenue, total_commission,
+      COUNT(*) OVER() as total_count
+    FROM affiliate_grouped
+    ${searchCondition}
     ORDER BY total_sales DESC
-    LIMIT 50`,
+    LIMIT ${limitParam} OFFSET ${offsetParam}`,
     ...queryParams
   );
 
   // Calculate summary
-  const totalAffiliates = affiliateQuery.length;
+  const totalCount = affiliateQuery.length > 0 ? Number(affiliateQuery[0].total_count) : 0;
   const totalSales = affiliateQuery.reduce((sum, a) => sum + Number(a.total_sales), 0);
   const totalRevenue = affiliateQuery.reduce((sum, a) => sum + Number(a.total_revenue), 0);
   const totalCommission = affiliateQuery.reduce((sum, a) => sum + Number(a.total_commission), 0);
@@ -473,10 +511,16 @@ export async function getAffiliateStats(
       totalCommission: Number(a.total_commission),
     })),
     summary: {
-      totalAffiliates,
+      totalAffiliates: totalCount,
       totalSales,
       totalRevenue,
       totalCommission,
+    },
+    pagination: {
+      page,
+      limit,
+      totalItems: totalCount,
+      totalPages: Math.ceil(totalCount / limit),
     },
   };
 }
