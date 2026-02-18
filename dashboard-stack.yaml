@@ -1,13 +1,50 @@
 version: "3.8"
 
 services:
+  dashboard-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: dashboard
+      POSTGRES_PASSWORD: dashboard123
+      POSTGRES_DB: dashboard_db
+    volumes:
+      - dashboard_pg_data:/var/lib/postgresql/data
+    networks:
+      - rede
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dashboard -d dashboard_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+
+  dashboard-redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - dashboard_redis_data:/data
+    networks:
+      - rede
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+
   dashboard-backend:
     image: dashboard-backend:latest
     environment:
       NODE_ENV: production
       PORT: 3001
-      DATABASE_URL: postgresql://dashboard:dashboard123@173.212.239.150:5432/dashboard_db
-      REDIS_URL: redis://173.212.239.150:6379
+      DATABASE_URL: postgresql://dashboard:dashboard123@dashboard-postgres:5432/dashboard_db
+      REDIS_URL: redis://dashboard-redis:6379
       JWT_ACCESS_SECRET: 8778f5268dbba3630b4ee8ab51e633128554f9c3afb83b58a3469e7ba97e0ab9
       JWT_REFRESH_SECRET: 6d5e96f6f30af629bac4cef26226556787a05ba405ae34d1e4daaf5e68baa003
       ENCRYPTION_KEY: ca72afa9256e2d3817e6f363a1ab566526e180b1b3f36af169058c6ba9e3a0e4
@@ -50,6 +87,12 @@ services:
         - traefik.http.routers.dash-frontend.tls.certresolver=letsencryptresolver
         - traefik.http.routers.dash-frontend.priority=100
         - traefik.http.services.dash-frontend.loadbalancer.server.port=3000
+
+volumes:
+  dashboard_pg_data:
+    driver: local
+  dashboard_redis_data:
+    driver: local
 
 networks:
   rede:

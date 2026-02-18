@@ -52,6 +52,20 @@ export function errorHandler(
     return;
   }
 
+  const dbErrorCodes = ['P1001', 'P1002', 'P1003', 'P1008', 'P1017'];
+  const isDbError =
+    error.message?.includes("Can't reach database server") ||
+    error.message?.includes('ECONNREFUSED') ||
+    (error as any).code && dbErrorCodes.includes((error as any).code);
+
+  if (isDbError) {
+    res.status(503).json({
+      success: false,
+      error: 'Servico temporariamente indisponivel. Banco de dados inacessivel.',
+    });
+    return;
+  }
+
   res.status(500).json({
     success: false,
     error: GENERAL_MESSAGES.INTERNAL_ERROR,
