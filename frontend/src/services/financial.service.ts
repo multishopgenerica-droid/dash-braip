@@ -276,128 +276,128 @@ export const financialService = {
     if (startDate) params.append('startDate', startDate);
     if (endDate) params.append('endDate', endDate);
     const query = params.toString() ? `?${params.toString()}` : '';
-    const response = await api.get(`/financial/dashboard/macro${query}`);
+    const response = await api.get(`/api/financial/dashboard/macro${query}`);
     return response.data;
   },
 
   getMonthlyTrend: async (months = 6): Promise<MonthlyTrend[]> => {
-    const response = await api.get(`/financial/dashboard/trend?months=${months}`);
+    const response = await api.get(`/api/financial/dashboard/trend?months=${months}`);
     return response.data;
   },
 
   getSummaryCards: async (): Promise<SummaryCards> => {
-    const response = await api.get('/financial/dashboard/summary');
+    const response = await api.get('/api/financial/dashboard/summary');
     return response.data;
   },
 
   // Expenses
   listExpenses: async (params: Record<string, string | number> = {}): Promise<PaginatedResponse<Expense>> => {
-    const response = await api.get('/financial/expenses', { params });
+    const response = await api.get('/api/financial/expenses', { params });
     return response.data;
   },
 
   getExpense: async (id: string): Promise<Expense> => {
-    const response = await api.get(`/financial/expenses/${id}`);
+    const response = await api.get(`/api/financial/expenses/${id}`);
     return response.data;
   },
 
   createExpense: async (data: Partial<Expense>): Promise<Expense> => {
-    const response = await api.post('/financial/expenses', data);
+    const response = await api.post('/api/financial/expenses', data);
     return response.data;
   },
 
   updateExpense: async (id: string, data: Partial<Expense>): Promise<Expense> => {
-    const response = await api.patch(`/financial/expenses/${id}`, data);
+    const response = await api.patch(`/api/financial/expenses/${id}`, data);
     return response.data;
   },
 
   deleteExpense: async (id: string): Promise<void> => {
-    await api.delete(`/financial/expenses/${id}`);
+    await api.delete(`/api/financial/expenses/${id}`);
   },
 
   // Employees
   listEmployees: async (params: Record<string, string | number> = {}): Promise<PaginatedResponse<Employee>> => {
-    const response = await api.get('/financial/employees', { params });
+    const response = await api.get('/api/financial/employees', { params });
     return response.data;
   },
 
   getEmployee: async (id: string): Promise<Employee> => {
-    const response = await api.get(`/financial/employees/${id}`);
+    const response = await api.get(`/api/financial/employees/${id}`);
     return response.data;
   },
 
   createEmployee: async (data: Partial<Employee>): Promise<Employee> => {
-    const response = await api.post('/financial/employees', data);
+    const response = await api.post('/api/financial/employees', data);
     return response.data;
   },
 
   updateEmployee: async (id: string, data: Partial<Employee>): Promise<Employee> => {
-    const response = await api.put(`/financial/employees/${id}`, data);
+    const response = await api.put(`/api/financial/employees/${id}`, data);
     return response.data;
   },
 
   deleteEmployee: async (id: string): Promise<void> => {
-    await api.delete(`/financial/employees/${id}`);
+    await api.delete(`/api/financial/employees/${id}`);
   },
 
   getPayroll: async (): Promise<{ salaries: number; bonuses: number; benefits: number; total: number }> => {
-    const response = await api.get('/financial/employees/payroll');
+    const response = await api.get('/api/financial/employees/payroll');
     return response.data;
   },
 
   // Tools
   listTools: async (params: Record<string, string | number | boolean> = {}): Promise<PaginatedResponse<Tool>> => {
-    const response = await api.get('/financial/tools', { params });
+    const response = await api.get('/api/financial/tools', { params });
     return response.data;
   },
 
   getTool: async (id: string): Promise<Tool> => {
-    const response = await api.get(`/financial/tools/${id}`);
+    const response = await api.get(`/api/financial/tools/${id}`);
     return response.data;
   },
 
   createTool: async (data: Partial<Tool>): Promise<Tool> => {
-    const response = await api.post('/financial/tools', data);
+    const response = await api.post('/api/financial/tools', data);
     return response.data;
   },
 
   updateTool: async (id: string, data: Partial<Tool>): Promise<Tool> => {
-    const response = await api.put(`/financial/tools/${id}`, data);
+    const response = await api.put(`/api/financial/tools/${id}`, data);
     return response.data;
   },
 
   deleteTool: async (id: string): Promise<void> => {
-    await api.delete(`/financial/tools/${id}`);
+    await api.delete(`/api/financial/tools/${id}`);
   },
 
   getToolsCost: async (): Promise<{ monthlyCost: number }> => {
-    const response = await api.get('/financial/tools/cost');
+    const response = await api.get('/api/financial/tools/cost');
     return response.data;
   },
 
   // Traffic
   listTraffic: async (params: Record<string, string | number> = {}): Promise<PaginatedResponse<TrafficSpend>> => {
-    const response = await api.get('/financial/traffic', { params });
+    const response = await api.get('/api/financial/traffic', { params });
     return response.data;
   },
 
   getTraffic: async (id: string): Promise<TrafficSpend> => {
-    const response = await api.get(`/financial/traffic/${id}`);
+    const response = await api.get(`/api/financial/traffic/${id}`);
     return response.data;
   },
 
   createTraffic: async (data: Partial<TrafficSpend>): Promise<TrafficSpend> => {
-    const response = await api.post('/financial/traffic', data);
+    const response = await api.post('/api/financial/traffic', data);
     return response.data;
   },
 
   updateTraffic: async (id: string, data: Partial<TrafficSpend>): Promise<TrafficSpend> => {
-    const response = await api.put(`/financial/traffic/${id}`, data);
+    const response = await api.put(`/api/financial/traffic/${id}`, data);
     return response.data;
   },
 
   deleteTraffic: async (id: string): Promise<void> => {
-    await api.delete(`/financial/traffic/${id}`);
+    await api.delete(`/api/financial/traffic/${id}`);
   },
 
   getTrafficByPlatform: async (
@@ -418,7 +418,7 @@ export const financialService = {
     if (startDate) params.append('startDate', startDate);
     if (endDate) params.append('endDate', endDate);
     const query = params.toString() ? `?${params.toString()}` : '';
-    const response = await api.get(`/financial/traffic/platforms${query}`);
+    const response = await api.get(`/api/financial/traffic/platforms${query}`);
     return response.data;
   },
 };
