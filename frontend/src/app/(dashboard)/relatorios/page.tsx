@@ -333,9 +333,12 @@ export default function RelatoriosPage() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
   const [affiliatePage, setAffiliatePage] = useState(1);
-  const [affiliateLimit, setAffiliateLimit] = useState(20);
+  const [affiliateLimit, setAffiliateLimit] = useState(0);
   const [affiliateSearch, setAffiliateSearch] = useState("");
   const [affiliateSearchDebounced, setAffiliateSearchDebounced] = useState("");
+  const [affiliatePeriod, setAffiliatePeriod] = useState<"today" | "week" | "month" | "quarter" | "semester" | "year" | "custom">("month");
+  const [affCustomStart, setAffCustomStart] = useState("");
+  const [affCustomEnd, setAffCustomEnd] = useState("");
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -344,6 +347,34 @@ export default function RelatoriosPage() {
     }, 500);
     return () => clearTimeout(timer);
   }, [affiliateSearch]);
+
+  // Affiliate date range calculation
+  const getAffiliateDateRange = () => {
+    const now = new Date();
+    switch (affiliatePeriod) {
+      case "today":
+        return { start: now, end: now, label: "Hoje" };
+      case "week":
+        return { start: startOfWeek(now, { weekStartsOn: 1 }), end: now, label: "Esta Semana" };
+      case "month":
+        return { start: startOfMonth(now), end: now, label: "Este Mês" };
+      case "quarter":
+        return { start: startOfQuarter(now), end: now, label: "Este Trimestre" };
+      case "semester":
+        return { start: subMonths(now, 6), end: now, label: "Último Semestre" };
+      case "year":
+        return { start: startOfYear(now), end: now, label: "Este Ano" };
+      case "custom":
+        return {
+          start: affCustomStart ? new Date(affCustomStart) : now,
+          end: affCustomEnd ? new Date(affCustomEnd) : now,
+          label: "Personalizado",
+        };
+      default:
+        return { start: startOfMonth(now), end: now, label: "Este Mês" };
+    }
+  };
+  const affiliateDateRange = getAffiliateDateRange();
 
   const today = new Date();
   const yesterday = subDays(today, 1);
@@ -487,16 +518,16 @@ export default function RelatoriosPage() {
       }),
   });
 
-  // Affiliates data
+  // Affiliates data (uses its own dedicated date filter)
   const { data: affiliatesData, isLoading: isLoadingAffiliates } = useQuery({
-    queryKey: ["affiliates", selectedComparison, customCurrentStart, customCurrentEnd, selectedGateway, affiliatePage, affiliateLimit, affiliateSearchDebounced],
+    queryKey: ["affiliates", affiliatePeriod, affCustomStart, affCustomEnd, selectedGateway, affiliatePage, affiliateLimit, affiliateSearchDebounced],
     queryFn: () =>
       analyticsService.getAffiliates({
-        startDate: format(dateRanges.current.start, "yyyy-MM-dd"),
-        endDate: format(dateRanges.current.end, "yyyy-MM-dd"),
+        startDate: format(affiliateDateRange.start, "yyyy-MM-dd"),
+        endDate: format(affiliateDateRange.end, "yyyy-MM-dd"),
         gatewayId: selectedGateway || undefined,
         page: affiliatePage,
-        limit: affiliateLimit,
+        limit: affiliateLimit || undefined,
         search: affiliateSearchDebounced || undefined,
       }),
   });
@@ -840,18 +871,69 @@ export default function RelatoriosPage() {
 
           {/* Affiliates Section */}
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                  <Users className="h-5 w-5 text-primary" />
-                  Top Afiliados - {dateRanges.currentLabel}
-                </h3>
-                {affiliatesData?.summary && (
-                  <p className="text-sm text-gray-500 mt-1">
-                    {affiliatesData.summary.totalAffiliates} afiliados | {formatNumber(affiliatesData.summary.totalSales)} vendas | {formatCurrency(affiliatesData.summary.totalCommission)} em comissões
-                  </p>
-                )}
+            <div className="flex flex-col gap-4 mb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <Users className="h-5 w-5 text-primary" />
+                    Top Afiliados - {affiliateDateRange.label}
+                  </h3>
+                  {affiliatesData?.summary && (
+                    <p className="text-sm text-gray-500 mt-1">
+                      {affiliatesData.summary.totalAffiliates} afiliados | {formatNumber(affiliatesData.summary.totalSales)} vendas | {formatCurrency(affiliatesData.summary.totalCommission)} em comissões
+                    </p>
+                  )}
+                </div>
               </div>
+
+              {/* Period Filter */}
+              <div className="flex flex-wrap gap-2">
+                {([
+                  { key: "today", label: "Hoje" },
+                  { key: "week", label: "Semana" },
+                  { key: "month", label: "Mês" },
+                  { key: "quarter", label: "Trimestre" },
+                  { key: "semester", label: "Semestre" },
+                  { key: "year", label: "Ano" },
+                  { key: "custom", label: "Personalizado" },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.key}
+                    onClick={() => { setAffiliatePeriod(opt.key); setAffiliatePage(1); }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      affiliatePeriod === opt.key
+                        ? "bg-primary text-white"
+                        : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Custom Date Inputs */}
+              {affiliatePeriod === "custom" && (
+                <div className="flex flex-col sm:flex-row gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                  <div className="flex-1">
+                    <label className="block text-xs text-gray-500 mb-1">Data Início</label>
+                    <input
+                      type="date"
+                      value={affCustomStart}
+                      onChange={(e) => { setAffCustomStart(e.target.value); setAffiliatePage(1); }}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-xs text-gray-500 mb-1">Data Fim</label>
+                    <input
+                      type="date"
+                      value={affCustomEnd}
+                      onChange={(e) => { setAffCustomEnd(e.target.value); setAffiliatePage(1); }}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Search + Items per page */}
@@ -874,6 +956,7 @@ export default function RelatoriosPage() {
                 }}
                 className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
               >
+                <option value={0}>Todos</option>
                 <option value={10}>10 por página</option>
                 <option value={20}>20 por página</option>
                 <option value={50}>50 por página</option>
@@ -889,13 +972,13 @@ export default function RelatoriosPage() {
               <>
                 <AffiliateTable
                   affiliates={affiliatesData?.affiliates || []}
-                  currentLabel={dateRanges.currentLabel}
+                  currentLabel={affiliateDateRange.label}
                   page={affiliatePage}
-                  limit={affiliateLimit}
+                  limit={affiliateLimit || affiliatesData?.pagination?.totalItems || 1}
                 />
 
                 {/* Pagination Controls */}
-                {affiliatesData?.pagination && affiliatesData.pagination.totalPages > 1 && (
+                {affiliateLimit > 0 && affiliatesData?.pagination && affiliatesData.pagination.totalPages > 1 && (
                   <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                     <p className="text-sm text-gray-500">
                       Exibindo {((affiliatePage - 1) * affiliateLimit) + 1}-{Math.min(affiliatePage * affiliateLimit, affiliatesData.pagination.totalItems)} de {affiliatesData.pagination.totalItems} afiliados

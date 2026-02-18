@@ -421,6 +421,7 @@ export async function getAffiliateStats(
   const limit = dateFilter?.limit ?? 20;
   const search = dateFilter?.search;
   const offset = (page - 1) * limit;
+  const showAll = limit === 0;
 
   // Build date condition for raw query using parameterized queries
   const hasDateFilter = !!(dateFilter?.startDate && dateFilter?.endDate);
@@ -445,10 +446,14 @@ export async function getAffiliateStats(
     nextParam++;
   }
 
-  // Limit and offset params
-  const limitParam = `$${nextParam}`;
-  const offsetParam = `$${nextParam + 1}`;
-  queryParams.push(limit, offset);
+  // Limit and offset params (only when not showing all)
+  let paginationClause = '';
+  if (!showAll) {
+    const limitParam = `$${nextParam}`;
+    const offsetParam = `$${nextParam + 1}`;
+    queryParams.push(limit, offset);
+    paginationClause = `LIMIT ${limitParam} OFFSET ${offsetParam}`;
+  }
 
   // Query to get affiliate stats from sales with commissions
   // Uses COUNT(*) OVER() to get total count in the same query
@@ -490,7 +495,7 @@ export async function getAffiliateStats(
     FROM affiliate_grouped
     ${searchCondition}
     ORDER BY total_sales DESC
-    LIMIT ${limitParam} OFFSET ${offsetParam}`,
+    ${paginationClause}`,
     ...queryParams
   );
 
@@ -517,10 +522,10 @@ export async function getAffiliateStats(
       totalCommission,
     },
     pagination: {
-      page,
-      limit,
+      page: showAll ? 1 : page,
+      limit: showAll ? totalCount : limit,
       totalItems: totalCount,
-      totalPages: Math.ceil(totalCount / limit),
+      totalPages: showAll ? 1 : Math.ceil(totalCount / limit),
     },
   };
 }
