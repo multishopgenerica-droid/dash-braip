@@ -12,6 +12,7 @@ export interface Expense {
   dueDate?: string;
   paidAt?: string;
   recurrence: RecurrenceType;
+  recurrenceEndDate?: string;
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -23,12 +24,14 @@ export interface Employee {
   name: string;
   email?: string;
   phone?: string;
+  document?: string;
   role: EmployeeRole;
   status: EmployeeStatus;
   salary: number;
   bonus: number;
   benefits: number;
   startDate: string;
+  endDate?: string;
   paymentDay: number;
   notes?: string;
   createdAt: string;
@@ -304,7 +307,7 @@ export const financialService = {
   },
 
   updateExpense: async (id: string, data: Partial<Expense>): Promise<Expense> => {
-    const response = await api.put(`/financial/expenses/${id}`, data);
+    const response = await api.patch(`/financial/expenses/${id}`, data);
     return response.data;
   },
 

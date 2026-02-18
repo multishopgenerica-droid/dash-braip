@@ -32,7 +32,7 @@ export const updateToolSchema = createToolSchema.partial();
 
 export const toolFilterSchema = z.object({
   category: ToolCategoryEnum.optional(),
-  isActive: z.coerce.boolean().optional(),
+  isActive: z.preprocess((v) => v === 'true' || v === true, z.boolean()).optional(),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
 });

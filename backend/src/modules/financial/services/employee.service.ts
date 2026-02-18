@@ -10,12 +10,14 @@ export class EmployeeService {
         name: data.name,
         email: data.email,
         phone: data.phone,
+        document: data.document,
         role: data.role as EmployeeRole,
         status: data.status as EmployeeStatus,
         salary: data.salary,
         bonus: data.bonus || 0,
         benefits: data.benefits || 0,
         startDate: new Date(data.startDate),
+        endDate: data.endDate ? new Date(data.endDate) : null,
         paymentDay: data.paymentDay || 5,
         notes: data.notes,
       },
@@ -68,12 +70,14 @@ export class EmployeeService {
         ...(data.name && { name: data.name }),
         ...(data.email !== undefined && { email: data.email }),
         ...(data.phone !== undefined && { phone: data.phone }),
+        ...(data.document !== undefined && { document: data.document }),
         ...(data.role && { role: data.role as EmployeeRole }),
         ...(data.status && { status: data.status as EmployeeStatus }),
         ...(data.salary !== undefined && { salary: data.salary }),
         ...(data.bonus !== undefined && { bonus: data.bonus }),
         ...(data.benefits !== undefined && { benefits: data.benefits }),
         ...(data.startDate && { startDate: new Date(data.startDate) }),
+        ...(data.endDate !== undefined && { endDate: data.endDate ? new Date(data.endDate) : null }),
         ...(data.paymentDay !== undefined && { paymentDay: data.paymentDay }),
         ...(data.notes !== undefined && { notes: data.notes }),
       },
@@ -83,6 +87,11 @@ export class EmployeeService {
   async delete(userId: string, id: string) {
     const employee = await this.findById(userId, id);
     if (!employee) return null;
+
+    await prisma.expense.updateMany({
+      where: { employeeId: id },
+      data: { employeeId: null },
+    });
 
     return prisma.employee.delete({ where: { id } });
   }

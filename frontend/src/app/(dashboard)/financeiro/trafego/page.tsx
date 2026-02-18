@@ -14,6 +14,11 @@ import { toast } from 'sonner';
 
 const PLATFORMS = Object.keys(TRAFFIC_PLATFORM_LABELS) as TrafficPlatform[];
 
+const formatDateSafe = (isoDate: string) => {
+  const [y, m, d] = isoDate.split('T')[0].split('-');
+  return `${d}/${m}/${y}`;
+};
+
 function TrafficModal({
   traffic,
   onClose,
@@ -280,10 +285,10 @@ export default function TrafegoPage() {
     }
   };
 
-  // Calculate totals
-  const totalSpend = platformData?.reduce((sum, p) => sum + p.spend, 0) || 0;
-  const totalRevenue = platformData?.reduce((sum, p) => sum + p.revenue, 0) || 0;
-  const totalConversions = platformData?.reduce((sum, p) => sum + p.conversions, 0) || 0;
+  // Calculate totals from filtered table data (respects platform filter)
+  const totalSpend = data?.data?.reduce((sum: number, t: TrafficSpend) => sum + t.spend, 0) || 0;
+  const totalRevenue = data?.data?.reduce((sum: number, t: TrafficSpend) => sum + t.revenue, 0) || 0;
+  const totalConversions = data?.data?.reduce((sum: number, t: TrafficSpend) => sum + t.conversions, 0) || 0;
   const overallRoas = totalSpend > 0 ? (totalRevenue / totalSpend).toFixed(2) : '0.00';
 
   return (
@@ -431,7 +436,7 @@ export default function TrafegoPage() {
                 return (
                   <tr key={traffic.id} className="hover:bg-zinc-800/50">
                     <td className="px-6 py-4 text-white">
-                      {new Date(traffic.date).toLocaleDateString('pt-BR')}
+                      {formatDateSafe(traffic.date as string)}
                     </td>
                     <td className="px-6 py-4 text-zinc-300">
                       {TRAFFIC_PLATFORM_LABELS[traffic.platform]}

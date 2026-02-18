@@ -15,6 +15,9 @@ export class ExpenseService {
         dueDate: data.dueDate ? new Date(data.dueDate) : null,
         paidAt: data.paidAt ? new Date(data.paidAt) : null,
         recurrence: data.recurrence as RecurrenceType,
+        recurrenceEndDate: data.recurrenceEndDate ? new Date(data.recurrenceEndDate) : null,
+        employeeId: data.employeeId || null,
+        toolId: data.toolId || null,
         notes: data.notes,
       },
     });
@@ -78,6 +81,9 @@ export class ExpenseService {
         ...(data.dueDate !== undefined && { dueDate: data.dueDate ? new Date(data.dueDate) : null }),
         ...(data.paidAt !== undefined && { paidAt: data.paidAt ? new Date(data.paidAt) : null }),
         ...(data.recurrence && { recurrence: data.recurrence as RecurrenceType }),
+        ...(data.recurrenceEndDate !== undefined && { recurrenceEndDate: data.recurrenceEndDate ? new Date(data.recurrenceEndDate) : null }),
+        ...(data.employeeId !== undefined && { employeeId: data.employeeId || null }),
+        ...(data.toolId !== undefined && { toolId: data.toolId || null }),
         ...(data.notes !== undefined && { notes: data.notes }),
       },
     });
@@ -91,7 +97,7 @@ export class ExpenseService {
   }
 
   async getTotalByCategory(userId: string, startDate?: Date, endDate?: Date) {
-    const where: Record<string, unknown> = { userId };
+    const where: Record<string, unknown> = { userId, status: { not: 'CANCELADO' } };
 
     if (startDate || endDate) {
       where.dueDate = {};
@@ -118,6 +124,7 @@ export class ExpenseService {
     const result = await prisma.expense.aggregate({
       where: {
         userId,
+        status: { not: 'CANCELADO' },
         dueDate: { gte: startDate, lte: endDate },
       },
       _sum: { amount: true },

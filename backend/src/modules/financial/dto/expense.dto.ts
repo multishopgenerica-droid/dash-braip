@@ -37,6 +37,9 @@ export const createExpenseSchema = z.object({
   dueDate: z.string().datetime().optional(),
   paidAt: z.string().datetime().optional(),
   recurrence: RecurrenceTypeEnum.default('UNICO'),
+  recurrenceEndDate: z.string().datetime().optional(),
+  employeeId: z.string().uuid().optional(),
+  toolId: z.string().uuid().optional(),
   notes: z.string().optional(),
 });
 

@@ -146,39 +146,25 @@ function TrendChart({ trends }: { trends: MonthlyTrend[] }) {
 }
 
 export default function FinanceiroPage() {
-  const { data: macroView, isLoading: loadingMacro } = useQuery({
+  const { data: macroView, isLoading: loadingMacro, isError: errorMacro } = useQuery({
     queryKey: ['financial', 'macro'],
     queryFn: () => financialService.getMacroView(),
+    staleTime: 5 * 60 * 1000,
   });
 
-  const { data: trends, isLoading: loadingTrends } = useQuery({
+  const { data: trends, isLoading: loadingTrends, isError: errorTrends } = useQuery({
     queryKey: ['financial', 'trends'],
     queryFn: () => financialService.getMonthlyTrend(6),
+    staleTime: 5 * 60 * 1000,
   });
 
-  const { data: summary, isLoading: loadingSummary } = useQuery({
+  const { data: summary, isLoading: loadingSummary, isError: errorSummary } = useQuery({
     queryKey: ['financial', 'summary'],
     queryFn: () => financialService.getSummaryCards(),
+    staleTime: 5 * 60 * 1000,
   });
 
-  const isLoading = loadingMacro || loadingTrends || loadingSummary;
-
-  if (isLoading) {
-    return (
-      <div className="p-6">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-zinc-800 rounded w-1/4" />
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-32 bg-zinc-800 rounded-xl" />
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const profitMargin = macroView ? parseFloat(macroView.profit.margin) : 0;
+  const profitMargin = macroView ? (Number(macroView.profit.margin) || 0) : 0;
 
   return (
     <div className="p-6 space-y-6">
@@ -190,79 +176,119 @@ export default function FinanceiroPage() {
       </div>
 
       {/* Main Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          title="Faturamento"
-          value={macroView ? formatCurrency(macroView.revenue.total) : 'R$ 0,00'}
-          icon={DollarSign}
-          variant="default"
-        />
-        <StatCard
-          title="Custos Totais"
-          value={macroView ? formatCurrency(macroView.costs.total) : 'R$ 0,00'}
-          icon={TrendingDown}
-          variant="danger"
-        />
-        <StatCard
-          title="Lucro Líquido"
-          value={macroView ? formatCurrency(macroView.profit.net) : 'R$ 0,00'}
-          icon={macroView && macroView.profit.net >= 0 ? TrendingUp : TrendingDown}
-          variant={macroView && macroView.profit.net >= 0 ? 'success' : 'danger'}
-        />
-        <StatCard
-          title="Margem de Lucro"
-          value={`${profitMargin.toFixed(1)}%`}
-          icon={Target}
-          variant={profitMargin >= 20 ? 'success' : profitMargin >= 0 ? 'warning' : 'danger'}
-        />
-      </div>
+      {errorMacro ? (
+        <div className="rounded-xl border border-red-700/50 bg-red-900/20 p-6 text-center">
+          <p className="text-red-400">Erro ao carregar dados financeiros. Tente novamente mais tarde.</p>
+        </div>
+      ) : loadingMacro ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-32 bg-zinc-800 rounded-xl animate-pulse" />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            title="Faturamento"
+            value={macroView ? formatCurrency(macroView.revenue.total) : 'R$ 0,00'}
+            icon={DollarSign}
+            variant="default"
+          />
+          <StatCard
+            title="Custos Totais"
+            value={macroView ? formatCurrency(macroView.costs.total) : 'R$ 0,00'}
+            icon={TrendingDown}
+            variant="danger"
+          />
+          <StatCard
+            title="Lucro Líquido"
+            value={macroView ? formatCurrency(macroView.profit.net) : 'R$ 0,00'}
+            icon={macroView && macroView.profit.net >= 0 ? TrendingUp : TrendingDown}
+            variant={macroView && macroView.profit.net >= 0 ? 'success' : 'danger'}
+          />
+          <StatCard
+            title="Margem de Lucro"
+            value={`${profitMargin.toFixed(1)}%`}
+            icon={Target}
+            variant={profitMargin >= 20 ? 'success' : profitMargin >= 0 ? 'warning' : 'danger'}
+          />
+        </div>
+      )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 p-4 flex items-center gap-4">
-          <div className="rounded-full bg-purple-900/50 p-3">
-            <Users className="h-5 w-5 text-purple-400" />
+      {errorSummary ? (
+        <div className="rounded-xl border border-red-700/50 bg-red-900/20 p-6 text-center">
+          <p className="text-red-400">Erro ao carregar resumo. Tente novamente mais tarde.</p>
+        </div>
+      ) : loadingSummary ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-20 bg-zinc-800 rounded-xl animate-pulse" />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 p-4 flex items-center gap-4">
+            <div className="rounded-full bg-purple-900/50 p-3">
+              <Users className="h-5 w-5 text-purple-400" />
+            </div>
+            <div>
+              <p className="text-sm text-zinc-400">Funcionarios Ativos</p>
+              <p className="text-xl font-bold text-white">{summary?.activeEmployees || 0}</p>
+            </div>
           </div>
-          <div>
-            <p className="text-sm text-zinc-400">Funcionários Ativos</p>
-            <p className="text-xl font-bold text-white">{summary?.activeEmployees || 0}</p>
+          <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 p-4 flex items-center gap-4">
+            <div className="rounded-full bg-amber-900/50 p-3">
+              <Wrench className="h-5 w-5 text-amber-400" />
+            </div>
+            <div>
+              <p className="text-sm text-zinc-400">Ferramentas Ativas</p>
+              <p className="text-xl font-bold text-white">{summary?.activeTools || 0}</p>
+            </div>
+          </div>
+          <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 p-4 flex items-center gap-4">
+            <div className="rounded-full bg-rose-900/50 p-3">
+              <Receipt className="h-5 w-5 text-rose-400" />
+            </div>
+            <div>
+              <p className="text-sm text-zinc-400">Despesas Pendentes</p>
+              <p className="text-xl font-bold text-white">{summary?.pendingExpenses || 0}</p>
+            </div>
+          </div>
+          <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 p-4 flex items-center gap-4">
+            <div className="rounded-full bg-blue-900/50 p-3">
+              <Target className="h-5 w-5 text-blue-400" />
+            </div>
+            <div>
+              <p className="text-sm text-zinc-400">Trafego do Mes</p>
+              <p className="text-xl font-bold text-white">
+                {formatCurrency(summary?.monthlyTrafficSpend || 0)}
+              </p>
+            </div>
           </div>
         </div>
-        <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 p-4 flex items-center gap-4">
-          <div className="rounded-full bg-amber-900/50 p-3">
-            <Wrench className="h-5 w-5 text-amber-400" />
-          </div>
-          <div>
-            <p className="text-sm text-zinc-400">Ferramentas Ativas</p>
-            <p className="text-xl font-bold text-white">{summary?.activeTools || 0}</p>
-          </div>
-        </div>
-        <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 p-4 flex items-center gap-4">
-          <div className="rounded-full bg-rose-900/50 p-3">
-            <Receipt className="h-5 w-5 text-rose-400" />
-          </div>
-          <div>
-            <p className="text-sm text-zinc-400">Despesas Pendentes</p>
-            <p className="text-xl font-bold text-white">{summary?.pendingExpenses || 0}</p>
-          </div>
-        </div>
-        <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 p-4 flex items-center gap-4">
-          <div className="rounded-full bg-blue-900/50 p-3">
-            <Target className="h-5 w-5 text-blue-400" />
-          </div>
-          <div>
-            <p className="text-sm text-zinc-400">Tráfego do Mês</p>
-            <p className="text-xl font-bold text-white">
-              {formatCurrency(summary?.monthlyTrafficSpend || 0)}
-            </p>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {macroView && <CostBreakdownCard macroView={macroView} />}
-        {trends && <TrendChart trends={trends} />}
+        {errorMacro ? (
+          <div className="rounded-xl border border-red-700/50 bg-red-900/20 p-6 text-center">
+            <p className="text-red-400">Erro ao carregar breakdown de custos.</p>
+          </div>
+        ) : loadingMacro ? (
+          <div className="h-64 bg-zinc-800 rounded-xl animate-pulse" />
+        ) : macroView ? (
+          <CostBreakdownCard macroView={macroView} />
+        ) : null}
+        {errorTrends ? (
+          <div className="rounded-xl border border-red-700/50 bg-red-900/20 p-6 text-center">
+            <p className="text-red-400">Erro ao carregar tendencia mensal.</p>
+          </div>
+        ) : loadingTrends ? (
+          <div className="h-64 bg-zinc-800 rounded-xl animate-pulse" />
+        ) : trends ? (
+          <TrendChart trends={trends} />
+        ) : null}
       </div>
     </div>
   );

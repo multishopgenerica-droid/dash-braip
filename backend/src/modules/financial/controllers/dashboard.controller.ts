@@ -30,7 +30,7 @@ export class FinancialDashboardController {
         return res.status(401).json({ error: 'Não autorizado' });
       }
 
-      const months = req.query.months ? parseInt(req.query.months as string, 10) : 6;
+      const months = Math.min(Math.max(parseInt(req.query.months as string, 10) || 6, 1), 24);
       const result = await financialDashboardService.getMonthlyTrend(userId, months);
 
       return res.json(result);

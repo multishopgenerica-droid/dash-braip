@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { trafficService } from '../services/traffic.service';
 import { createTrafficSpendSchema, updateTrafficSpendSchema, trafficFilterSchema } from '../dto/traffic.dto';
 import { ZodError } from 'zod';
+import { Prisma } from '@prisma/client';
 
 export class TrafficController {
   async create(req: Request, res: Response) {
@@ -18,6 +19,12 @@ export class TrafficController {
     } catch (error) {
       if (error instanceof ZodError) {
         return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
+      }
+      if (error instanceof Error && error.message === 'DUPLICATE_TRAFFIC_SPEND') {
+        return res.status(409).json({ error: 'Já existe um gasto de tráfego para esta plataforma e data' });
+      }
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        return res.status(409).json({ error: 'Já existe um registro para esta plataforma e data' });
       }
       console.error('Error creating traffic spend:', error);
       return res.status(500).json({ error: 'Erro interno do servidor' });
@@ -84,6 +91,9 @@ export class TrafficController {
     } catch (error) {
       if (error instanceof ZodError) {
         return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
+      }
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        return res.status(409).json({ error: 'Já existe um registro para esta plataforma e data' });
       }
       console.error('Error updating traffic spend:', error);
       return res.status(500).json({ error: 'Erro interno do servidor' });

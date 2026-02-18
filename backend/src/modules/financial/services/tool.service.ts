@@ -98,13 +98,19 @@ export class ToolService {
           monthlyTotal += tool.monthlyCost;
           break;
         case 'ANUAL':
-          monthlyTotal += Math.round(tool.monthlyCost / 12);
+          monthlyTotal += tool.annualCost
+            ? Math.round(tool.annualCost / 12)
+            : Math.round(tool.monthlyCost / 12);
           break;
         case 'SEMESTRAL':
-          monthlyTotal += Math.round(tool.monthlyCost / 6);
+          monthlyTotal += tool.annualCost
+            ? Math.round(tool.annualCost / 6)
+            : Math.round(tool.monthlyCost / 6);
           break;
         case 'TRIMESTRAL':
-          monthlyTotal += Math.round(tool.monthlyCost / 3);
+          monthlyTotal += tool.annualCost
+            ? Math.round(tool.annualCost / 3)
+            : Math.round(tool.monthlyCost / 3);
           break;
         case 'SEMANAL':
           monthlyTotal += tool.monthlyCost * 4;

@@ -21,14 +21,16 @@ export const EmployeeStatusEnum = z.enum([
 
 export const createEmployeeSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório').max(255),
-  email: z.string().email('Email inválido').optional(),
-  phone: z.string().optional(),
+  email: z.string().email('Email inválido').optional().or(z.literal('')).transform(v => v === '' ? undefined : v),
+  phone: z.string().optional().transform(v => v === '' ? undefined : v),
   role: EmployeeRoleEnum,
   status: EmployeeStatusEnum.default('ATIVO'),
   salary: z.number().int().nonnegative('Salário não pode ser negativo'), // in cents
   bonus: z.number().int().nonnegative().default(0), // in cents
   benefits: z.number().int().nonnegative().default(0), // in cents
+  document: z.string().optional(),
   startDate: z.string().datetime(),
+  endDate: z.string().datetime().optional().nullable(),
   paymentDay: z.number().int().min(1).max(31).default(5),
   notes: z.string().optional(),
 });

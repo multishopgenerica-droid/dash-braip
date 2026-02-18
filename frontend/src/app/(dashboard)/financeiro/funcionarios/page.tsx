@@ -21,21 +21,25 @@ function EmployeeModal({
   employee,
   onClose,
   onSave,
+  isSaving,
 }: {
   employee?: Employee | null;
   onClose: () => void;
   onSave: (data: Partial<Employee>) => void;
+  isSaving?: boolean;
 }) {
   const [formData, setFormData] = useState({
     name: employee?.name || '',
     email: employee?.email || '',
     phone: employee?.phone || '',
+    document: employee?.document || '',
     role: employee?.role || 'OUTROS',
     status: employee?.status || 'ATIVO',
     salary: employee?.salary ? employee.salary / 100 : 0,
     bonus: employee?.bonus ? employee.bonus / 100 : 0,
     benefits: employee?.benefits ? employee.benefits / 100 : 0,
     startDate: employee?.startDate ? employee.startDate.split('T')[0] : '',
+    endDate: employee?.endDate ? employee.endDate.split('T')[0] : '',
     paymentDay: employee?.paymentDay || 5,
     notes: employee?.notes || '',
   });
@@ -50,10 +54,14 @@ function EmployeeModal({
 
     onSave({
       ...formData,
+      email: formData.email || undefined,
+      phone: formData.phone || undefined,
+      document: formData.document || undefined,
       salary: Math.round(formData.salary * 100),
       bonus: Math.round(formData.bonus * 100),
       benefits: Math.round(formData.benefits * 100),
       startDate: new Date(formData.startDate + 'T12:00:00').toISOString(),
+      endDate: formData.endDate ? new Date(formData.endDate + 'T12:00:00').toISOString() : undefined,
     });
   };
 
@@ -101,6 +109,17 @@ function EmployeeModal({
                 className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-white"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm text-zinc-400 mb-1">CPF/CNPJ</label>
+            <input
+              type="text"
+              value={formData.document}
+              onChange={(e) => setFormData({ ...formData, document: e.target.value })}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-white"
+              placeholder="000.000.000-00"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -200,6 +219,16 @@ function EmployeeModal({
           </div>
 
           <div>
+            <label className="block text-sm text-zinc-400 mb-1">Data de Saída</label>
+            <input
+              type="date"
+              value={formData.endDate}
+              onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-white"
+            />
+          </div>
+
+          <div>
             <label className="block text-sm text-zinc-400 mb-1">Observações</label>
             <textarea
               value={formData.notes}
@@ -219,9 +248,10 @@ function EmployeeModal({
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-white transition"
+              disabled={isSaving}
+              className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Salvar
+              {isSaving ? 'Salvando...' : 'Salvar'}
             </button>
           </div>
         </form>
@@ -262,6 +292,7 @@ export default function FuncionariosPage() {
       queryClient.invalidateQueries({ queryKey: ['payroll'] });
       toast.success('Funcionário criado com sucesso!');
       setShowModal(false);
+      setSelectedEmployee(null);
     },
     onError: (error: unknown) => {
       const err = error as { response?: { data?: { error?: string; details?: Array<{ message: string }> } } };
@@ -467,9 +498,10 @@ export default function FuncionariosPage() {
                       </button>
                       <button
                         onClick={() => handleDelete(employee.id)}
-                        className="p-2 text-zinc-400 hover:text-red-400 transition"
+                        disabled={deleteMutation.isPending}
+                        className="p-2 text-zinc-400 hover:text-red-400 transition disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        {deleteMutation.isPending ? <span className="text-xs">Excluindo...</span> : <Trash2 className="h-4 w-4" />}
                       </button>
                     </div>
                   </td>
@@ -507,6 +539,7 @@ export default function FuncionariosPage() {
             setSelectedEmployee(null);
           }}
           onSave={handleSave}
+          isSaving={createMutation.isPending || updateMutation.isPending}
         />
       )}
     </div>

@@ -20,7 +20,7 @@ router.get('/dashboard/summary', (req, res) => financialDashboardController.getS
 router.get('/expenses', (req, res) => expenseController.findAll(req, res));
 router.post('/expenses', (req, res) => expenseController.create(req, res));
 router.get('/expenses/:id', (req, res) => expenseController.findById(req, res));
-router.put('/expenses/:id', (req, res) => expenseController.update(req, res));
+router.patch('/expenses/:id', (req, res) => expenseController.update(req, res));
 router.delete('/expenses/:id', (req, res) => expenseController.delete(req, res));
 
 // Employee routes

@@ -28,10 +28,11 @@ export class FinancialDashboardService {
       },
     });
 
-    // Get expenses total
+    // Get expenses total (excluding cancelled)
     const expenses = await prisma.expense.aggregate({
       where: {
         userId,
+        status: { not: 'CANCELADO' },
         dueDate: {
           gte: defaultStartDate,
           lte: defaultEndDate,
@@ -71,8 +72,9 @@ export class FinancialDashboardService {
     const trafficRevenue = trafficSpend._sum?.revenue || 0;
 
     const totalCosts = expensesTotal + payrollTotal + toolsTotal + trafficTotal;
-    const netProfit = revenue - totalCosts;
-    const profitMargin = revenue > 0 ? ((netProfit / revenue) * 100).toFixed(2) : '0.00';
+    const totalRevenue = revenue + trafficRevenue;
+    const netProfit = totalRevenue - totalCosts;
+    const profitMargin = totalRevenue > 0 ? parseFloat(((netProfit / totalRevenue) * 100).toFixed(2)) : 0;
 
     return {
       period: {
@@ -116,44 +118,48 @@ export class FinancialDashboardService {
       const startDate = new Date(year, month - 1, 1);
       const endDate = new Date(year, month, 0, 23, 59, 59);
 
-      // Sales revenue
-      const salesRevenue = await prisma.sale.aggregate({
-        where: {
-          gatewayConfig: { userId },
-          transStatusCode: PAGAMENTO_APROVADO,
-          transCreateDate: { gte: startDate, lte: endDate },
-        },
-        _sum: { transValue: true },
-      });
-
-      // Expenses
-      const expenses = await prisma.expense.aggregate({
-        where: {
-          userId,
-          dueDate: { gte: startDate, lte: endDate },
-        },
-        _sum: { amount: true },
-      });
-
-      // Traffic
-      const traffic = await prisma.trafficSpend.aggregate({
-        where: {
-          userId,
-          date: { gte: startDate, lte: endDate },
-        },
-        _sum: { spend: true },
-      });
+      const [salesRevenue, expenses, traffic, payroll, toolsCost] = await Promise.all([
+        prisma.sale.aggregate({
+          where: {
+            gatewayConfig: { userId },
+            transStatusCode: PAGAMENTO_APROVADO,
+            transCreateDate: { gte: startDate, lte: endDate },
+          },
+          _sum: { transValue: true },
+        }),
+        prisma.expense.aggregate({
+          where: {
+            userId,
+            status: { not: 'CANCELADO' },
+            dueDate: { gte: startDate, lte: endDate },
+          },
+          _sum: { amount: true },
+        }),
+        prisma.trafficSpend.aggregate({
+          where: {
+            userId,
+            date: { gte: startDate, lte: endDate },
+          },
+          _sum: { spend: true },
+        }),
+        employeeService.getMonthlyPayroll(userId),
+        toolService.getMonthlyToolsCost(userId),
+      ]);
 
       const revenue = salesRevenue._sum?.transValue || 0;
       const expenseTotal = expenses._sum?.amount || 0;
       const trafficTotal = traffic._sum?.spend || 0;
+      const payrollTotal = payroll.total;
+      const toolsTotal = toolsCost;
 
       trends.push({
         month: `${year}-${String(month).padStart(2, '0')}`,
         revenue,
         expenses: expenseTotal,
         traffic: trafficTotal,
-        profit: revenue - expenseTotal - trafficTotal,
+        payroll: payrollTotal,
+        tools: toolsTotal,
+        profit: revenue - expenseTotal - trafficTotal - payrollTotal - toolsTotal,
       });
     }
 

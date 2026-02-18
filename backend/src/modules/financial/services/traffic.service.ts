@@ -4,12 +4,27 @@ import { TrafficPlatform } from '@prisma/client';
 
 export class TrafficService {
   async create(userId: string, data: CreateTrafficSpendDTO) {
+    const dateValue = new Date(data.date);
+
+    // Verificar duplicata antes de inserir (campaignId pode ser NULL, e NULL != NULL no PostgreSQL)
+    const existing = await prisma.trafficSpend.findFirst({
+      where: {
+        userId,
+        platform: data.platform as TrafficPlatform,
+        date: dateValue,
+        campaignName: data.campaignName || null,
+      },
+    });
+    if (existing) {
+      throw new Error('DUPLICATE_TRAFFIC_SPEND');
+    }
+
     return prisma.trafficSpend.create({
       data: {
         userId,
         platform: data.platform as TrafficPlatform,
         campaignName: data.campaignName,
-        date: new Date(data.date),
+        date: dateValue,
         spend: data.spend,
         impressions: data.impressions || 0,
         clicks: data.clicks || 0,

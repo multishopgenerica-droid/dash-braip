@@ -44,7 +44,7 @@ function ToolModal({
     onSave({
       ...formData,
       monthlyCost: Math.round(formData.monthlyCost * 100),
-      annualCost: formData.annualCost ? Math.round(formData.annualCost * 100) : undefined,
+      annualCost: typeof formData.annualCost === 'number' ? Math.round(formData.annualCost * 100) : undefined,
       billingDate: formData.billingDate ? new Date(formData.billingDate + 'T12:00:00').toISOString() : undefined,
       loginUrl: formData.loginUrl || undefined,
     });
@@ -219,7 +219,7 @@ export default function FerramentasPage() {
     page: 1,
   });
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['tools', filters],
     queryFn: () =>
       financialService.listTools({
@@ -229,7 +229,7 @@ export default function FerramentasPage() {
       } as Record<string, string | number | boolean>),
   });
 
-  const { data: costData } = useQuery({
+  const { data: costData, isLoading: costLoading, isError: costError } = useQuery({
     queryKey: ['tools-cost'],
     queryFn: () => financialService.getToolsCost(),
   });
@@ -320,7 +320,11 @@ export default function FerramentasPage() {
           <div>
             <p className="text-sm text-zinc-400">Custo Mensal Total (Ferramentas Ativas)</p>
             <p className="text-3xl font-bold text-white mt-1">
-              {formatCurrency(costData?.monthlyCost || 0)}
+              {costLoading
+                ? 'Carregando...'
+                : costError
+                  ? 'Erro ao calcular'
+                  : formatCurrency(costData?.monthlyCost || 0)}
             </p>
           </div>
           <div className="rounded-full bg-amber-900/50 p-4">
@@ -357,7 +361,11 @@ export default function FerramentasPage() {
 
       {/* Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {isLoading ? (
+        {isError ? (
+          <div className="col-span-full text-center text-red-400 py-12">
+            Erro ao carregar ferramentas. Tente novamente.
+          </div>
+        ) : isLoading ? (
           [...Array(6)].map((_, i) => (
             <div key={i} className="h-48 bg-zinc-800 rounded-xl animate-pulse" />
           ))
@@ -420,10 +428,14 @@ export default function FerramentasPage() {
               <div className="mt-4 flex items-end justify-between">
                 <div>
                   <p className="text-2xl font-bold text-white">
-                    {formatCurrency(tool.monthlyCost)}
+                    {tool.recurrence === 'ANUAL' && tool.annualCost
+                      ? formatCurrency(tool.annualCost)
+                      : formatCurrency(tool.monthlyCost)}
                   </p>
                   <p className="text-xs text-zinc-500">
-                    {RECURRENCE_LABELS[tool.recurrence]}
+                    {tool.recurrence === 'ANUAL' && tool.annualCost
+                      ? `${RECURRENCE_LABELS[tool.recurrence]} (${formatCurrency(Math.round(tool.annualCost / 12))}/mes)`
+                      : RECURRENCE_LABELS[tool.recurrence]}
                   </p>
                 </div>
                 {!tool.isActive && (
@@ -438,23 +450,50 @@ export default function FerramentasPage() {
       </div>
 
       {/* Pagination */}
-      {data && data.pagination.totalPages > 1 && (
-        <div className="flex justify-center gap-2">
-          {[...Array(data.pagination.totalPages)].map((_, i) => (
+      {data && data.pagination.totalPages > 1 && (() => {
+        const totalPages = data.pagination.totalPages;
+        const currentPage = filters.page;
+        const maxButtons = 5;
+        let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+        const endPage = Math.min(totalPages, startPage + maxButtons - 1);
+        if (endPage - startPage + 1 < maxButtons) {
+          startPage = Math.max(1, endPage - maxButtons + 1);
+        }
+        const pages: number[] = [];
+        for (let i = startPage; i <= endPage; i++) pages.push(i);
+
+        return (
+          <div className="flex justify-center gap-2">
             <button
-              key={i}
-              onClick={() => setFilters({ ...filters, page: i + 1 })}
-              className={`px-3 py-1 rounded ${
-                filters.page === i + 1
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-              }`}
+              onClick={() => setFilters({ ...filters, page: currentPage - 1 })}
+              disabled={currentPage === 1}
+              className="px-3 py-1 rounded bg-zinc-800 text-zinc-400 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {i + 1}
+              Anterior
             </button>
-          ))}
-        </div>
-      )}
+            {pages.map((p) => (
+              <button
+                key={p}
+                onClick={() => setFilters({ ...filters, page: p })}
+                className={`px-3 py-1 rounded ${
+                  currentPage === p
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+            <button
+              onClick={() => setFilters({ ...filters, page: currentPage + 1 })}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 rounded bg-zinc-800 text-zinc-400 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Proximo
+            </button>
+          </div>
+        );
+      })()}
 
       {showModal && (
         <ToolModal
