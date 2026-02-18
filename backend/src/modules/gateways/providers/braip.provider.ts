@@ -49,8 +49,10 @@ export class BraipProvider implements PaymentGateway {
 
   async testConnection(): Promise<boolean> {
     try {
+      const now = new Date();
+      const dateMin = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} 00:00:00`;
       const response = await this.client.get('/api/vendas', {
-        params: { page: 1 },
+        params: { page: 1, date_min: dateMin, date_max: dateMin.replace('00:00:00', '23:59:59') },
       });
       console.log('Braip testConnection response:', response.status, response.data?.message || 'OK');
       return response.status === 200;
@@ -70,9 +72,14 @@ export class BraipProvider implements PaymentGateway {
 
     // Braip API requires date_min/date_max with max 6 months range
     // Generate date ranges to fetch all sales
-    const dateRanges = this.generateDateRanges(params.startDate, params.endDate);
+    // Note: Use lastUpdateMin as startDate if provided (for incremental syncs)
+    const startDate = params.lastUpdateMin || params.startDate;
+    const dateRanges = this.generateDateRanges(startDate, params.endDate);
+
+    console.log(`Starting fetchSales with ${dateRanges.length} date range(s)`);
 
     for (const range of dateRanges) {
+      console.log(`Fetching sales for date range: ${range.start} to ${range.end}`);
       let currentPage = 1;
       let hasMorePages = true;
 
@@ -88,6 +95,7 @@ export class BraipProvider implements PaymentGateway {
         }
 
         try {
+          console.log(`Fetching sales from /api/vendas, page ${currentPage}, params:`, queryParams);
           const response = await this.client.get('/api/vendas', {
             params: queryParams,
           });
@@ -95,17 +103,31 @@ export class BraipProvider implements PaymentGateway {
           const data = response.data;
           const sales = data.data || [];
 
-          allSales.push(...sales);
+          if (Array.isArray(sales) && sales.length > 0) {
+            allSales.push(...sales);
+            console.log(`Fetched ${sales.length} sales from page ${currentPage}, total: ${data.total || 'N/A'}`);
+          }
 
           hasMorePages = data.next_page_url !== null;
+
+          // Also check last_page
+          if (data.last_page && currentPage >= data.last_page) {
+            hasMorePages = false;
+          }
+
           currentPage++;
 
           // Rate limiting protection
           if (hasMorePages) {
             await this.delay(200);
           }
-        } catch (error) {
-          console.error('Error fetching Braip sales:', error);
+        } catch (error: unknown) {
+          const axiosError = error as { response?: { status?: number; data?: unknown }; message?: string };
+          console.error('Error fetching Braip sales:', {
+            status: axiosError.response?.status,
+            data: axiosError.response?.data,
+            message: axiosError.message,
+          });
           hasMorePages = false;
         }
       }
@@ -114,6 +136,7 @@ export class BraipProvider implements PaymentGateway {
       await this.delay(300);
     }
 
+    console.log(`Total sales fetched: ${allSales.length}`);
     return allSales;
   }
 
