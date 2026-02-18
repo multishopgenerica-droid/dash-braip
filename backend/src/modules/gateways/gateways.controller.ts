@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import * as gatewaysService from './gateways.service';
 import { createGatewaySchema, updateGatewaySchema } from './gateways.dto';
 import { GATEWAY_MESSAGES } from '../../shared/constants/messages';
+import { syncGateway } from '../sync/sync.service';
 
 export async function listGateways(
   req: Request,
@@ -143,11 +144,17 @@ export async function triggerSync(
   next: NextFunction
 ): Promise<void> {
   try {
-    // This will be handled by the sync module
-    // For now, just return a message
+    const gateway = await gatewaysService.getGatewayById(
+      req.user!.id,
+      req.params.id
+    );
+
+    const result = await syncGateway(gateway.id);
+
     res.json({
       success: true,
       message: GATEWAY_MESSAGES.SYNC_STARTED,
+      data: result,
     });
   } catch (error) {
     next(error);
