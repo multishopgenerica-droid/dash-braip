@@ -138,7 +138,7 @@ function SalesHeatmap({ data }: { data: HeatmapData[] }) {
   };
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto overflow-y-visible">
       <div className="min-w-[800px]">
         {/* Header - Hours */}
         <div className="flex mb-2">
@@ -163,7 +163,7 @@ function SalesHeatmap({ data }: { data: HeatmapData[] }) {
                   className={`flex-1 h-8 mx-0.5 rounded ${getColor(count)} cursor-pointer transition-all hover:scale-110 hover:z-10 relative group`}
                 >
                   {/* Tooltip */}
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-20">
+                  <div className={`absolute ${dayIndex <= 1 ? 'top-full mt-2' : 'bottom-full mb-2'} left-1/2 -translate-x-1/2 hidden group-hover:block z-[9999]`}>
                     <div className="bg-gray-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-lg">
                       <p className="font-semibold">{day} às {hour}h</p>
                       <p>{count} vendas</p>
