@@ -344,14 +344,14 @@ export class AIQueryService {
           transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO,
           transCreateDate: { gte: range.start, lte: range.end },
         },
-        _sum: { transTotalValue: true },
+        _sum: { transValue: true },
       }),
     ]);
 
     return {
       total,
       approved,
-      revenue: revenue._sum.transTotalValue || 0,
+      revenue: revenue._sum.transValue || 0,
     };
   }
 
@@ -364,7 +364,7 @@ export class AIQueryService {
         transCreateDate: { gte: range.start, lte: range.end },
       },
       _count: true,
-      _sum: { transTotalValue: true },
+      _sum: { transValue: true },
       orderBy: { _count: { productName: 'desc' } },
       take: 5,
     });
@@ -372,7 +372,7 @@ export class AIQueryService {
     return products.map(p => ({
       name: p.productName,
       count: p._count,
-      revenue: p._sum.transTotalValue || 0,
+      revenue: p._sum.transValue || 0,
     }));
   }
 
@@ -418,7 +418,7 @@ export class AIQueryService {
       select: {
         transCreateDate: true,
         transStatusCode: true,
-        transTotalValue: true,
+        transValue: true,
       },
     });
 
@@ -432,7 +432,7 @@ export class AIQueryService {
       grouped[dateKey].total++;
       if (sale.transStatusCode === SALE_STATUS.PAGAMENTO_APROVADO) {
         grouped[dateKey].approved++;
-        grouped[dateKey].revenue += sale.transTotalValue;
+        grouped[dateKey].revenue += sale.transValue;
       }
     }
 
@@ -734,11 +734,11 @@ ${analysisType === 'opportunities' ? 'Identifique oportunidades de crescimento.'
         transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO,
         transCreateDate: { gte: range.start, lte: range.end },
       },
-      _sum: { transTotalValue: true },
+      _sum: { transValue: true },
       _count: true,
     });
 
-    const revenue = result._sum.transTotalValue || 0;
+    const revenue = result._sum.transValue || 0;
     const count = result._count || 0;
 
     return {
@@ -837,13 +837,13 @@ ${analysisType === 'opportunities' ? 'Identifique oportunidades de crescimento.'
         gatewayConfig: { userId },
         transStatusCode: SALE_STATUS.AGUARDANDO_PAGAMENTO,
       },
-      _sum: { transTotalValue: true },
+      _sum: { transValue: true },
     });
 
     return {
       intent: 'PENDING_SALES',
-      data: { count, value: totalValue._sum.transTotalValue },
-      response: `⏳ *Vendas Pendentes*\n\n📦 Total: ${count}\n💰 Valor: ${this.formatCurrency(totalValue._sum.transTotalValue || 0)}`,
+      data: { count, value: totalValue._sum.transValue },
+      response: `⏳ *Vendas Pendentes*\n\n📦 Total: ${count}\n💰 Valor: ${this.formatCurrency(totalValue._sum.transValue || 0)}`,
     };
   }
 
@@ -886,7 +886,7 @@ ${analysisType === 'opportunities' ? 'Identifique oportunidades de crescimento.'
         transCreateDate: { gte: monthRange.start, lte: monthRange.end },
       },
       _count: true,
-      _sum: { transTotalValue: true },
+      _sum: { transValue: true },
       orderBy: { _count: { productName: 'desc' } },
       take: 5,
     });
@@ -895,7 +895,7 @@ ${analysisType === 'opportunities' ? 'Identifique oportunidades de crescimento.'
     products.forEach((p, i) => {
       const emoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '📦';
       const name = p.productName.length > 25 ? p.productName.substring(0, 25) + '...' : p.productName;
-      response += `${emoji} ${name}\n   ${p._count} vendas | ${this.formatCurrency(p._sum.transTotalValue || 0)}\n\n`;
+      response += `${emoji} ${name}\n   ${p._count} vendas | ${this.formatCurrency(p._sum.transValue || 0)}\n\n`;
     });
 
     return {
@@ -916,7 +916,7 @@ ${analysisType === 'opportunities' ? 'Identifique oportunidades de crescimento.'
           transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO,
           transCreateDate: { gte: todayRange.start, lte: todayRange.end },
         },
-        _sum: { transTotalValue: true },
+        _sum: { transValue: true },
         _count: true,
       }),
       prisma.sale.aggregate({
@@ -925,13 +925,13 @@ ${analysisType === 'opportunities' ? 'Identifique oportunidades de crescimento.'
           transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO,
           transCreateDate: { gte: yesterdayRange.start, lte: yesterdayRange.end },
         },
-        _sum: { transTotalValue: true },
+        _sum: { transValue: true },
         _count: true,
       }),
     ]);
 
-    const todayRevenue = todayData._sum.transTotalValue || 0;
-    const yesterdayRevenue = yesterdayData._sum.transTotalValue || 0;
+    const todayRevenue = todayData._sum.transValue || 0;
+    const yesterdayRevenue = yesterdayData._sum.transValue || 0;
     const revenueChange = yesterdayRevenue > 0
       ? ((todayRevenue - yesterdayRevenue) / yesterdayRevenue * 100).toFixed(1)
       : '0';
@@ -963,7 +963,7 @@ ${analysisType === 'opportunities' ? 'Identifique oportunidades de crescimento.'
           transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO,
           transCreateDate: { gte: thisWeek.start, lte: thisWeek.end },
         },
-        _sum: { transTotalValue: true },
+        _sum: { transValue: true },
         _count: true,
       }),
       prisma.sale.aggregate({
@@ -972,13 +972,13 @@ ${analysisType === 'opportunities' ? 'Identifique oportunidades de crescimento.'
           transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO,
           transCreateDate: { gte: lastWeek.start, lte: lastWeek.end },
         },
-        _sum: { transTotalValue: true },
+        _sum: { transValue: true },
         _count: true,
       }),
     ]);
 
-    const thisRevenue = thisWeekData._sum.transTotalValue || 0;
-    const lastRevenue = lastWeekData._sum.transTotalValue || 0;
+    const thisRevenue = thisWeekData._sum.transValue || 0;
+    const lastRevenue = lastWeekData._sum.transValue || 0;
     const change = lastRevenue > 0
       ? ((thisRevenue - lastRevenue) / lastRevenue * 100).toFixed(1)
       : '0';
@@ -1003,7 +1003,7 @@ ${analysisType === 'opportunities' ? 'Identifique oportunidades de crescimento.'
           transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO,
           transCreateDate: { gte: thisMonth.start, lte: thisMonth.end },
         },
-        _sum: { transTotalValue: true },
+        _sum: { transValue: true },
         _count: true,
       }),
       prisma.sale.aggregate({
@@ -1012,13 +1012,13 @@ ${analysisType === 'opportunities' ? 'Identifique oportunidades de crescimento.'
           transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO,
           transCreateDate: { gte: lastMonth.start, lte: lastMonth.end },
         },
-        _sum: { transTotalValue: true },
+        _sum: { transValue: true },
         _count: true,
       }),
     ]);
 
-    const thisRevenue = thisMonthData._sum.transTotalValue || 0;
-    const lastRevenue = lastMonthData._sum.transTotalValue || 0;
+    const thisRevenue = thisMonthData._sum.transValue || 0;
+    const lastRevenue = lastMonthData._sum.transValue || 0;
     const change = lastRevenue > 0
       ? ((thisRevenue - lastRevenue) / lastRevenue * 100).toFixed(1)
       : '0';
@@ -1050,7 +1050,7 @@ ${analysisType === 'opportunities' ? 'Identifique oportunidades de crescimento.'
           transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO,
           transCreateDate: { gte: range.start, lte: range.end },
         },
-        _sum: { transTotalValue: true },
+        _sum: { transValue: true },
       }),
     ]);
 
@@ -1062,8 +1062,8 @@ ${analysisType === 'opportunities' ? 'Identifique oportunidades de crescimento.'
 
     return {
       intent: 'DAILY_SUMMARY',
-      data: { total, approved, pending, canceled, revenue: revenue._sum.transTotalValue },
-      response: `📊 *Resumo de Hoje*\n\n💰 Faturamento: ${this.formatCurrency(revenue._sum.transTotalValue || 0)}\n\n📦 Total de vendas: ${total}\n✅ Aprovadas: ${approved}\n⏳ Pendentes: ${pending}\n❌ Canceladas: ${canceled}\n\n📈 Taxa de conversão: ${conversion}%`,
+      data: { total, approved, pending, canceled, revenue: revenue._sum.transValue },
+      response: `📊 *Resumo de Hoje*\n\n💰 Faturamento: ${this.formatCurrency(revenue._sum.transValue || 0)}\n\n📦 Total de vendas: ${total}\n✅ Aprovadas: ${approved}\n⏳ Pendentes: ${pending}\n❌ Canceladas: ${canceled}\n\n📈 Taxa de conversão: ${conversion}%`,
     };
   }
 
@@ -1085,7 +1085,7 @@ ${analysisType === 'opportunities' ? 'Identifique oportunidades de crescimento.'
           transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO,
           transCreateDate: { gte: range.start, lte: range.end },
         },
-        _sum: { transTotalValue: true },
+        _sum: { transValue: true },
       }),
       prisma.sale.groupBy({
         by: ['productName'],
@@ -1102,12 +1102,12 @@ ${analysisType === 'opportunities' ? 'Identifique oportunidades de crescimento.'
 
     const total = salesData.reduce((acc, s) => acc + s._count, 0);
     const approved = salesData.find(s => s.transStatusCode === SALE_STATUS.PAGAMENTO_APROVADO)?._count || 0;
-    const avgTicket = approved > 0 ? (revenue._sum.transTotalValue || 0) / approved : 0;
+    const avgTicket = approved > 0 ? (revenue._sum.transValue || 0) / approved : 0;
 
     return {
       intent: 'WEEKLY_SUMMARY',
-      data: { total, approved, revenue: revenue._sum.transTotalValue, topProduct },
-      response: `📊 *Resumo da Semana*\n\n💰 Faturamento: ${this.formatCurrency(revenue._sum.transTotalValue || 0)}\n🎫 Ticket médio: ${this.formatCurrency(avgTicket)}\n\n📦 Total de vendas: ${total}\n✅ Aprovadas: ${approved}\n\n🏆 Produto mais vendido:\n${topProduct[0]?.productName || 'N/A'}`,
+      data: { total, approved, revenue: revenue._sum.transValue, topProduct },
+      response: `📊 *Resumo da Semana*\n\n💰 Faturamento: ${this.formatCurrency(revenue._sum.transValue || 0)}\n🎫 Ticket médio: ${this.formatCurrency(avgTicket)}\n\n📦 Total de vendas: ${total}\n✅ Aprovadas: ${approved}\n\n🏆 Produto mais vendido:\n${topProduct[0]?.productName || 'N/A'}`,
     };
   }
 
@@ -1122,7 +1122,7 @@ ${analysisType === 'opportunities' ? 'Identifique oportunidades de crescimento.'
           transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO,
           transCreateDate: { gte: range.start, lte: range.end },
         },
-        _sum: { transTotalValue: true },
+        _sum: { transValue: true },
         _count: true,
       }),
       prisma.sale.aggregate({
@@ -1131,7 +1131,7 @@ ${analysisType === 'opportunities' ? 'Identifique oportunidades de crescimento.'
           transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO,
           transCreateDate: { gte: lastMonth.start, lte: lastMonth.end },
         },
-        _sum: { transTotalValue: true },
+        _sum: { transValue: true },
       }),
       prisma.sale.groupBy({
         by: ['transStatusCode'],
@@ -1154,8 +1154,8 @@ ${analysisType === 'opportunities' ? 'Identifique oportunidades de crescimento.'
       }),
     ]);
 
-    const thisRevenue = thisMonthRevenue._sum.transTotalValue || 0;
-    const lastRevenue = lastMonthRevenue._sum.transTotalValue || 0;
+    const thisRevenue = thisMonthRevenue._sum.transValue || 0;
+    const lastRevenue = lastMonthRevenue._sum.transValue || 0;
     const change = lastRevenue > 0 ? ((thisRevenue - lastRevenue) / lastRevenue * 100).toFixed(1) : '0';
     const changeEmoji = parseFloat(change) >= 0 ? '📈' : '📉';
 

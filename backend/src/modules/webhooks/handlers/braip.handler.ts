@@ -258,7 +258,7 @@ async function updateProductMetrics(
     },
     _count: true,
     _sum: {
-      transTotalValue: true,
+      transValue: true,
     },
   });
 
@@ -266,11 +266,11 @@ async function updateProductMetrics(
     where: {
       gatewayConfigId: gatewayId,
       productKey,
-      transStatus: 'Aprovado',
+      transStatusCode: 2,
     },
     _count: true,
     _sum: {
-      transTotalValue: true,
+      transValue: true,
     },
   });
 
@@ -286,12 +286,12 @@ async function updateProductMetrics(
       productHash: productKey,
       name: productName,
       totalSales: stats._count,
-      totalRevenue: approvedStats._sum.transTotalValue || 0,
+      totalRevenue: approvedStats._sum.transValue || 0,
     },
     update: {
       name: productName,
       totalSales: stats._count,
-      totalRevenue: approvedStats._sum.transTotalValue || 0,
+      totalRevenue: approvedStats._sum.transValue || 0,
     },
   });
 }

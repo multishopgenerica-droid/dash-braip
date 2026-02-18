@@ -10,8 +10,7 @@ services:
       POSTGRES_DB: dashboard_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    # ports removidas - acesso apenas via rede interna Docker
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U dashboard"]
       interval: 5s
@@ -25,8 +24,7 @@ services:
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
-    ports:
-      - "6379:6379"
+    # ports removidas - acesso apenas via rede interna Docker
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -40,6 +38,7 @@ services:
       dockerfile: docker/Dockerfile
     container_name: dashboard-backend
     environment:
+      TZ: America/Sao_Paulo
       NODE_ENV: production
       PORT: 3001
       DATABASE_URL: postgresql://dashboard:${DB_PASSWORD:-dashboard123}@postgres:5432/dashboard_db
@@ -48,8 +47,7 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
-    ports:
-      - "3001:3001"
+    # ports removidas - acesso via Traefik/rede interna
     depends_on:
       postgres:
         condition: service_healthy

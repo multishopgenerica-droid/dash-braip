@@ -24,8 +24,10 @@ RUN npm run build
 # Production stage
 FROM node:20-slim AS runner
 
-# Install OpenSSL for Prisma
-RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+ENV TZ=America/Sao_Paulo
+
+# Install OpenSSL and tzdata for Prisma and timezone
+RUN apt-get update && apt-get install -y openssl tzdata && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

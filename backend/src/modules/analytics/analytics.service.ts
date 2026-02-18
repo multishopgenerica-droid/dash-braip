@@ -56,10 +56,10 @@ export async function getDashboardMetrics(
   if (dateFilter?.startDate || dateFilter?.endDate) {
     where.transCreateDate = {};
     if (dateFilter.startDate) {
-      where.transCreateDate.gte = new Date(dateFilter.startDate + 'T00:00:00');
+      where.transCreateDate.gte = new Date(dateFilter.startDate + 'T00:00:00-03:00');
     }
     if (dateFilter.endDate) {
-      where.transCreateDate.lte = new Date(dateFilter.endDate + 'T23:59:59');
+      where.transCreateDate.lte = new Date(dateFilter.endDate + 'T23:59:59-03:00');
     }
   }
 
@@ -89,16 +89,16 @@ export async function getDashboardMetrics(
   const [revenueData, pendingRevenueData] = await Promise.all([
     prisma.sale.aggregate({
       where: { ...where, transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO },
-      _sum: { transTotalValue: true },
+      _sum: { transValue: true },
     }),
     prisma.sale.aggregate({
       where: { ...where, transStatusCode: SALE_STATUS.AGUARDANDO_PAGAMENTO },
-      _sum: { transTotalValue: true },
+      _sum: { transValue: true },
     }),
   ]);
 
-  const totalRevenue = revenueData._sum.transTotalValue || 0;
-  const pendingRevenue = pendingRevenueData._sum.transTotalValue || 0;
+  const totalRevenue = revenueData._sum.transValue || 0;
+  const pendingRevenue = pendingRevenueData._sum.transValue || 0;
   const ticketMedio = approvedSales > 0 ? totalRevenue / approvedSales : 0;
   const ticketMedioPending = pendingSales > 0 ? pendingRevenue / pendingSales : 0;
 
@@ -155,7 +155,7 @@ export async function getDashboardMetrics(
         transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO,
         transCreateDate: { gte: thisMonthStart },
       },
-      _sum: { transTotalValue: true },
+      _sum: { transValue: true },
     }),
     prisma.sale.aggregate({
       where: {
@@ -163,7 +163,7 @@ export async function getDashboardMetrics(
         transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO,
         transCreateDate: { gte: lastMonthStart, lte: lastMonthEnd },
       },
-      _sum: { transTotalValue: true },
+      _sum: { transValue: true },
     }),
   ]);
 
@@ -171,8 +171,8 @@ export async function getDashboardMetrics(
     ? ((thisMonthSales - lastMonthSales) / lastMonthSales) * 100
     : 0;
 
-  const lastMonthRevenueValue = lastMonthRevenue._sum.transTotalValue || 0;
-  const thisMonthRevenueValue = thisMonthRevenue._sum.transTotalValue || 0;
+  const lastMonthRevenueValue = lastMonthRevenue._sum.transValue || 0;
+  const thisMonthRevenueValue = thisMonthRevenue._sum.transValue || 0;
   const revenueGrowth = lastMonthRevenueValue > 0
     ? ((thisMonthRevenueValue - lastMonthRevenueValue) / lastMonthRevenueValue) * 100
     : 0;
@@ -229,7 +229,7 @@ export async function getRevenueByPeriod(
     where,
     select: {
       transCreateDate: true,
-      transTotalValue: true,
+      transValue: true,
     },
     orderBy: { transCreateDate: 'asc' },
   });
@@ -237,8 +237,8 @@ export async function getRevenueByPeriod(
   const grouped: Record<string, number> = {};
 
   for (const sale of sales) {
-    const dateKey = sale.transCreateDate.toISOString().split('T')[0];
-    grouped[dateKey] = (grouped[dateKey] || 0) + sale.transTotalValue;
+    const dateKey = sale.transCreateDate.toLocaleDateString('en-CA');
+    grouped[dateKey] = (grouped[dateKey] || 0) + sale.transValue;
   }
 
   return Object.entries(grouped).map(([date, revenue]) => ({
@@ -380,14 +380,14 @@ export async function getRealtimeMetrics(
 
   const revenue = await prisma.sale.aggregate({
     where: { ...where, transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO },
-    _sum: { transTotalValue: true },
+    _sum: { transValue: true },
   });
 
   return {
     lastHour: {
       sales: recentSales,
       approved: recentApproved,
-      revenue: revenue._sum.transTotalValue || 0,
+      revenue: revenue._sum.transValue || 0,
     },
     timestamp: now.toISOString(),
   };
@@ -408,12 +408,15 @@ export async function getAffiliateStats(
     return { affiliates: [], summary: { totalAffiliates: 0, totalSales: 0, totalRevenue: 0, totalCommission: 0 } };
   }
 
-  // Build date condition for raw query
-  let dateCondition = '';
-  if (dateFilter?.startDate && dateFilter?.endDate) {
-    const startDateStr = dateFilter.startDate + ' 00:00:00';
-    const endDateStr = dateFilter.endDate + ' 23:59:59';
-    dateCondition = `AND s."transCreateDate" >= '${startDateStr}'::timestamp AND s."transCreateDate" <= '${endDateStr}'::timestamp`;
+  // Build date condition for raw query using parameterized queries
+  const hasDateFilter = !!(dateFilter?.startDate && dateFilter?.endDate);
+  const dateCondition = hasDateFilter
+    ? `AND s."transCreateDate" >= $2::timestamp AND s."transCreateDate" <= $3::timestamp`
+    : '';
+
+  const queryParams: (string | Date)[] = [gateway.id];
+  if (hasDateFilter) {
+    queryParams.push(dateFilter!.startDate + ' 00:00:00', dateFilter!.endDate + ' 23:59:59');
   }
 
   // Query to get affiliate stats from sales with commissions
@@ -435,7 +438,7 @@ export async function getAffiliateStats(
       FROM sales s,
       jsonb_array_elements(s.commissions::jsonb) as c
       WHERE s."gatewayConfigId" = $1
-        AND s."transStatus" IN ('Aprovado', 'Pagamento Aprovado')
+        AND s."transStatusCode" = 2
         AND c->>'type' = 'Afiliado'
         ${dateCondition}
     )
@@ -450,7 +453,7 @@ export async function getAffiliateStats(
     GROUP BY affiliate_name, affiliate_email
     ORDER BY total_sales DESC
     LIMIT 50`,
-    gateway.id
+    ...queryParams
   );
 
   // Calculate summary
@@ -491,12 +494,15 @@ export async function getSalesBySource(
     return { affiliate: { count: 0, revenue: 0 }, direct: { count: 0, revenue: 0 } };
   }
 
-  // Build date condition for raw query
-  let dateCondition = '';
-  if (dateFilter?.startDate && dateFilter?.endDate) {
-    const startDateStr = dateFilter.startDate + ' 00:00:00';
-    const endDateStr = dateFilter.endDate + ' 23:59:59';
-    dateCondition = `AND s."transCreateDate" >= '${startDateStr}'::timestamp AND s."transCreateDate" <= '${endDateStr}'::timestamp`;
+  // Build date condition for raw query using parameterized queries
+  const hasDateFilter = !!(dateFilter?.startDate && dateFilter?.endDate);
+  const dateCondition = hasDateFilter
+    ? `AND s."transCreateDate" >= $2::timestamp AND s."transCreateDate" <= $3::timestamp`
+    : '';
+
+  const queryParams: (string | Date)[] = [gateway.id];
+  if (hasDateFilter) {
+    queryParams.push(dateFilter!.startDate + ' 00:00:00', dateFilter!.endDate + ' 23:59:59');
   }
 
   // Raw query for affiliate vs direct sales
@@ -510,10 +516,10 @@ export async function getSalesBySource(
       COALESCE(SUM(s."transValue"), 0)::bigint as valor_total
     FROM sales s
     WHERE s."gatewayConfigId" = $1
-      AND s."transStatus" IN ('Aprovado', 'Pagamento Aprovado')
+      AND s."transStatusCode" = 2
       ${dateCondition}
     GROUP BY 1`,
-    gateway.id
+    ...queryParams
   );
 
   const affiliateSales = result.find(r => r.fonte === 'Afiliado');
@@ -588,10 +594,10 @@ export async function getSalesHeatmap(
   if (dateFilter?.startDate || dateFilter?.endDate) {
     where.transCreateDate = {};
     if (dateFilter.startDate) {
-      where.transCreateDate.gte = new Date(dateFilter.startDate + 'T00:00:00');
+      where.transCreateDate.gte = new Date(dateFilter.startDate + 'T00:00:00-03:00');
     }
     if (dateFilter.endDate) {
-      where.transCreateDate.lte = new Date(dateFilter.endDate + 'T23:59:59');
+      where.transCreateDate.lte = new Date(dateFilter.endDate + 'T23:59:59-03:00');
     }
   }
 
@@ -599,7 +605,7 @@ export async function getSalesHeatmap(
     where,
     select: {
       transCreateDate: true,
-      transTotalValue: true,
+      transValue: true,
     },
   });
 
@@ -616,7 +622,7 @@ export async function getSalesHeatmap(
       heatmap[key] = { count: 0, revenue: 0 };
     }
     heatmap[key].count += 1;
-    heatmap[key].revenue += sale.transTotalValue;
+    heatmap[key].revenue += sale.transValue;
   }
 
   // Convert to array format
@@ -691,12 +697,12 @@ export async function getAllProducts(
       ...(gatewayId && { gatewayConfigId: gatewayId }),
     },
     _count: true,
-    _sum: { transTotalValue: true },
+    _sum: { transValue: true },
   });
 
   // Create a map for quick lookup
   const salesMap = new Map(
-    salesByProduct.map(s => [s.productKey, { count: s._count, revenue: s._sum.transTotalValue || 0 }])
+    salesByProduct.map(s => [s.productKey, { count: s._count, revenue: s._sum.transValue || 0 }])
   );
 
   // Merge products with sales data
@@ -706,6 +712,6 @@ export async function getAllProducts(
     description: product.description,
     thumbnail: product.thumbnail,
     _count: salesMap.get(product.productHash)?.count || 0,
-    _sum: { transTotalValue: salesMap.get(product.productHash)?.revenue || 0 },
+    _sum: { transValue: salesMap.get(product.productHash)?.revenue || 0 },
   }));
 }

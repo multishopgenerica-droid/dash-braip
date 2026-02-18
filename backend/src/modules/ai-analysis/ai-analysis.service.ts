@@ -171,11 +171,11 @@ async function generateAnalysisResult(
     }),
     prisma.sale.aggregate({
       where: { gatewayConfigId: { in: gatewayIds }, transStatusCode: 2 },
-      _sum: { transTotalValue: true },
+      _sum: { transValue: true },
     }),
   ]);
 
-  const totalRevenue = revenue._sum.transTotalValue || 0;
+  const totalRevenue = revenue._sum.transValue || 0;
   const conversionRate = salesCount > 0 ? ((approvedSales / salesCount) * 100).toFixed(2) : 0;
 
   // Generate analysis based on type

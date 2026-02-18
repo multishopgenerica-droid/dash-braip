@@ -54,16 +54,20 @@ export async function syncGateway(gatewayId: string): Promise<SyncResult> {
     // Sync sales
     try {
       const lastSync = gateway.lastSync?.toISOString();
+      console.log(`Starting sales sync for gateway ${gatewayId}, lastSync: ${lastSync || 'none'}`);
       const sales = await provider.fetchSales({
         lastUpdateMin: lastSync,
       });
+      console.log(`Received ${sales.length} sales from API`);
 
       for (const sale of sales) {
         await upsertSale(gatewayId, sale);
         result.salesSynced++;
       }
+      console.log(`Synced ${result.salesSynced} sales to database`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`Sales sync error: ${message}`, error);
       result.errors.push(`Sales sync error: ${message}`);
     }
 
@@ -305,7 +309,7 @@ async function syncPlansFromSales(gatewayId: string): Promise<void> {
     where: {
       gatewayConfigId: gatewayId,
       planKey: { not: null },
-      transStatus: { in: ['Aprovado', 'Pagamento Aprovado'] },
+      transStatusCode: 2,
     },
     _count: { id: true },
     _sum: { transValue: true },
@@ -364,9 +368,9 @@ async function syncAffiliatesFromSales(gatewayId: string): Promise<void> {
       MAX(elem->>'email') as email,
       MAX(elem->>'phone') as phone,
       MAX(elem->>'document') as document,
-      COUNT(*) FILTER (WHERE s."transStatus" IN ('Aprovado', 'Pagamento Aprovado')) as "totalSales",
-      COALESCE(SUM(s."transValue") FILTER (WHERE s."transStatus" IN ('Aprovado', 'Pagamento Aprovado')), 0) as "totalRevenue",
-      COALESCE(SUM((elem->>'value')::int) FILTER (WHERE s."transStatus" IN ('Aprovado', 'Pagamento Aprovado')), 0) as "totalCommission",
+      COUNT(*) FILTER (WHERE s."transStatusCode" = 2) as "totalSales",
+      COALESCE(SUM(s."transValue") FILTER (WHERE s."transStatusCode" = 2), 0) as "totalRevenue",
+      COALESCE(SUM((elem->>'value')::int) FILTER (WHERE s."transStatusCode" = 2), 0) as "totalCommission",
       now() as "updatedAt"
     FROM sales s,
     LATERAL jsonb_array_elements(s.commissions) elem
@@ -397,8 +401,8 @@ async function updateProductStats(gatewayId: string): Promise<void> {
     FROM (
       SELECT
         s."productKey",
-        COUNT(*) FILTER (WHERE s."transStatus" IN ('Aprovado', 'Pagamento Aprovado')) as total_sales,
-        COALESCE(SUM(s."transValue") FILTER (WHERE s."transStatus" IN ('Aprovado', 'Pagamento Aprovado')), 0) as total_revenue
+        COUNT(*) FILTER (WHERE s."transStatusCode" = 2) as total_sales,
+        COALESCE(SUM(s."transValue") FILTER (WHERE s."transStatusCode" = 2), 0) as total_revenue
       FROM sales s
       WHERE s."gatewayConfigId" = ${gatewayId}
       GROUP BY s."productKey"

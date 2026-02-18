@@ -413,12 +413,12 @@ export default function DashboardPage() {
         };
       case "last7days":
         return {
-          startDate: format(subDays(now, 7), "yyyy-MM-dd"),
+          startDate: format(subDays(now, 6), "yyyy-MM-dd"),
           endDate: format(now, "yyyy-MM-dd"),
         };
       case "last30days":
         return {
-          startDate: format(subDays(now, 30), "yyyy-MM-dd"),
+          startDate: format(subDays(now, 29), "yyyy-MM-dd"),
           endDate: format(now, "yyyy-MM-dd"),
         };
       case "thisMonth":

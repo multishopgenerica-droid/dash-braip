@@ -24,7 +24,7 @@ export class FinancialDashboardService {
         },
       },
       _sum: {
-        transTotalValue: true,
+        transValue: true,
       },
     });
 
@@ -63,7 +63,7 @@ export class FinancialDashboardService {
       },
     });
 
-    const revenue = salesRevenue._sum?.transTotalValue || 0;
+    const revenue = salesRevenue._sum?.transValue || 0;
     const expensesTotal = expenses._sum?.amount || 0;
     const payrollTotal = payroll.total;
     const toolsTotal = toolsCost;
@@ -123,7 +123,7 @@ export class FinancialDashboardService {
           transStatusCode: PAGAMENTO_APROVADO,
           transCreateDate: { gte: startDate, lte: endDate },
         },
-        _sum: { transTotalValue: true },
+        _sum: { transValue: true },
       });
 
       // Expenses
@@ -144,7 +144,7 @@ export class FinancialDashboardService {
         _sum: { spend: true },
       });
 
-      const revenue = salesRevenue._sum?.transTotalValue || 0;
+      const revenue = salesRevenue._sum?.transValue || 0;
       const expenseTotal = expenses._sum?.amount || 0;
       const trafficTotal = traffic._sum?.spend || 0;
 

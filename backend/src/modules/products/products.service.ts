@@ -110,7 +110,7 @@ export async function getProductMetrics(
       gatewayConfig: { userId },
       transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO,
     },
-    _sum: { transTotalValue: true },
+    _sum: { transValue: true },
   });
 
   const abandons = await prisma.abandon.count({
@@ -129,7 +129,7 @@ export async function getProductMetrics(
       approvedSales,
       pendingSales,
       canceledSales,
-      totalRevenue: revenue._sum.transTotalValue || 0,
+      totalRevenue: revenue._sum.transValue || 0,
       abandons,
       conversionRate,
     },
@@ -156,7 +156,7 @@ export async function getProductsRanking(
     where,
     _count: true,
     _sum: {
-      transTotalValue: true,
+      transValue: true,
     },
     orderBy: {
       _count: {
@@ -171,7 +171,7 @@ export async function getProductsRanking(
     productKey: item.productKey,
     productName: item.productName,
     salesCount: item._count,
-    totalRevenue: item._sum.transTotalValue || 0,
+    totalRevenue: item._sum.transValue || 0,
   }));
 }
 
@@ -209,7 +209,7 @@ export async function updateProductMetrics(
         productKey: productHash,
         transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO,
       },
-      _sum: { transTotalValue: true },
+      _sum: { transValue: true },
     }),
     prisma.abandon.count({
       where: {
@@ -231,7 +231,7 @@ export async function updateProductMetrics(
     },
     data: {
       totalSales: salesCount,
-      totalRevenue: revenue._sum.transTotalValue || 0,
+      totalRevenue: revenue._sum.transValue || 0,
       totalAbandons: abandonsCount,
       conversionRate,
     },

@@ -35,12 +35,12 @@ function getDateRangeFromPeriod(period: string): { startDate: string; endDate: s
     }
     case "last7days": {
       const start = new Date(now);
-      start.setDate(start.getDate() - 7);
+      start.setDate(start.getDate() - 6);
       return { startDate: start.toISOString().split("T")[0], endDate: today };
     }
     case "last30days": {
       const start = new Date(now);
-      start.setDate(start.getDate() - 30);
+      start.setDate(start.getDate() - 29);
       return { startDate: start.toISOString().split("T")[0], endDate: today };
     }
     case "thisMonth": {

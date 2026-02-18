@@ -229,7 +229,7 @@ export class OpenAIService {
           transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO,
           transCreateDate: { gte: startDate, lte: endDate },
         },
-        _sum: { transTotalValue: true },
+        _sum: { transValue: true },
       }),
     ]);
 
@@ -238,7 +238,7 @@ export class OpenAIService {
       approved,
       pending,
       canceled,
-      revenue: revenueData._sum.transTotalValue || 0,
+      revenue: revenueData._sum.transValue || 0,
     };
   }
 
@@ -252,7 +252,7 @@ export class OpenAIService {
       select: {
         transCreateDate: true,
         transStatusCode: true,
-        transTotalValue: true,
+        transValue: true,
       },
       orderBy: { transCreateDate: 'asc' },
     });
@@ -268,7 +268,7 @@ export class OpenAIService {
       grouped[dateKey].total++;
       if (sale.transStatusCode === SALE_STATUS.PAGAMENTO_APROVADO) {
         grouped[dateKey].approved++;
-        grouped[dateKey].revenue += sale.transTotalValue;
+        grouped[dateKey].revenue += sale.transValue;
       }
     }
 
@@ -290,7 +290,7 @@ export class OpenAIService {
         transCreateDate: { gte: startDate, lte: endDate },
       },
       _count: true,
-      _sum: { transTotalValue: true },
+      _sum: { transValue: true },
       orderBy: { _count: { productName: 'desc' } },
       take: 10,
     });
@@ -298,7 +298,7 @@ export class OpenAIService {
     return products.map((p) => ({
       name: p.productName,
       sales: p._count,
-      revenue: p._sum.transTotalValue || 0,
+      revenue: p._sum.transValue || 0,
     }));
   }
 

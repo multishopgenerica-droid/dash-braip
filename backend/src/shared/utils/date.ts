@@ -60,14 +60,14 @@ export function getDateRangeFromPeriod(period: string): { start: Date; end: Date
     case 'yesterday':
       return { start: startOfDay(subDays(now, 1)), end: endOfDay(subDays(now, 1)) };
     case 'last7days':
-      return { start: startOfDay(subDays(now, 7)), end };
+      return { start: startOfDay(subDays(now, 6)), end };
     case 'last30days':
-      return { start: startOfDay(subDays(now, 30)), end };
+      return { start: startOfDay(subDays(now, 29)), end };
     case 'thisMonth':
       return { start: startOfMonth(now), end };
     case 'lastMonth':
       return { start: startOfMonth(subMonths(now, 1)), end: endOfMonth(subMonths(now, 1)) };
     default:
-      return { start: startOfDay(subDays(now, 30)), end };
+      return { start: startOfDay(subDays(now, 29)), end };
   }
 }

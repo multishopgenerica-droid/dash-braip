@@ -119,7 +119,7 @@ export async function getSalesStats(userId: string, gatewayId?: string): Promise
 
   const revenue = await prisma.sale.aggregate({
     where: { ...where, transStatusCode: SALE_STATUS.PAGAMENTO_APROVADO },
-    _sum: { transTotalValue: true },
+    _sum: { transValue: true },
   });
 
   return {
@@ -128,7 +128,7 @@ export async function getSalesStats(userId: string, gatewayId?: string): Promise
     pending,
     canceled,
     chargebacks,
-    totalRevenue: revenue._sum.transTotalValue || 0,
+    totalRevenue: revenue._sum.transValue || 0,
     conversionRate: total > 0 ? ((approved / total) * 100).toFixed(2) : 0,
   };
 }
@@ -172,14 +172,14 @@ export async function getSalesByStatus(userId: string, options: FilterOptions = 
     where,
     _count: true,
     _sum: {
-      transTotalValue: true,
+      transValue: true,
     },
   });
 
   return result.map((item) => ({
     transStatusCode: item.transStatusCode,
     _count: item._count,
-    _sum: { transTotalValue: item._sum.transTotalValue || 0 },
+    _sum: { transValue: item._sum.transValue || 0 },
   }));
 }
 
@@ -214,7 +214,7 @@ export async function getSalesByProduct(
     where,
     _count: true,
     _sum: {
-      transTotalValue: true,
+      transValue: true,
     },
     orderBy: {
       _count: {
@@ -227,7 +227,7 @@ export async function getSalesByProduct(
     productKey: item.productKey,
     productName: item.productName,
     _count: item._count,
-    _sum: { transTotalValue: item._sum.transTotalValue || 0 },
+    _sum: { transValue: item._sum.transValue || 0 },
   }));
 }
 
@@ -274,7 +274,7 @@ export async function getSalesByPeriod(
     select: {
       transCreateDate: true,
       transStatusCode: true,
-      transTotalValue: true,
+      transValue: true,
     },
     orderBy: { transCreateDate: 'asc' },
   });
@@ -293,7 +293,7 @@ export async function getSalesByPeriod(
 
     if (sale.transStatusCode === SALE_STATUS.PAGAMENTO_APROVADO) {
       grouped[dateKey].approved++;
-      grouped[dateKey].revenue += sale.transTotalValue;
+      grouped[dateKey].revenue += sale.transValue;
     }
   }
 
