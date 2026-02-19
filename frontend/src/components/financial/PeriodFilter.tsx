@@ -178,7 +178,7 @@ export function PeriodFilter({ value, onChange }: PeriodFilterProps) {
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute right-0 top-full mt-2 z-50 w-80 rounded-xl border border-zinc-600 bg-zinc-800 p-4 shadow-2xl shadow-black/50">
+          <div className="absolute left-0 top-full mt-2 z-50 w-80 rounded-xl border border-zinc-600 bg-zinc-800 p-4 shadow-2xl shadow-black/50">
             <div className="mb-3 flex items-center justify-between rounded-lg bg-zinc-700/50 px-3 py-2">
               <span className="text-xs text-zinc-400">Período selecionado</span>
               <span className="text-xs font-medium text-white">{periodDisplay}</span>
