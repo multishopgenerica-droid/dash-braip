@@ -62,6 +62,12 @@ interface FullContext {
   dayOfWeekPatterns: DayOfWeekStats[];
   bestDay: string;
   worstDay: string;
+  comparisonPeriod?: {
+    startDate: string;
+    endDate: string;
+    stats: PeriodStats;
+    dailySales: DailySale[];
+  };
 }
 
 export class OpenAIService {
@@ -160,6 +166,30 @@ export class OpenAIService {
 
     // Handle relative dates
     const now = new Date();
+
+    // Handle month comparison patterns: "comparativo janeiro/fevereiro", "janeiro vs fevereiro"
+    const monthNames: Record<string, number> = {
+      'janeiro': 0, 'fevereiro': 1, 'marco': 2, 'abril': 3, 'maio': 4, 'junho': 5,
+      'julho': 6, 'agosto': 7, 'setembro': 8, 'outubro': 9, 'novembro': 10, 'dezembro': 11
+    };
+
+    // Find all month names in the query
+    const foundMonths: number[] = [];
+    for (const [monthName, monthIndex] of Object.entries(monthNames)) {
+      if (normalizedQuery.includes(monthName)) {
+        foundMonths.push(monthIndex);
+      }
+    }
+
+    if (foundMonths.length >= 2 && !result.startDate) {
+      // Sort months
+      foundMonths.sort((a, b) => a - b);
+      const year = now.getFullYear();
+      // First month = startDate
+      result.startDate = new Date(year, foundMonths[0], 1, 0, 0, 0);
+      // Second month = end of that month
+      result.endDate = new Date(year, foundMonths[1] + 1, 0, 23, 59, 59);
+    }
 
     if (!result.startDate && !result.endDate) {
       // Check for relative period keywords
@@ -383,6 +413,41 @@ export class OpenAIService {
     const bestDay = sortedByApproved[0]?.dayName || 'N/A';
     const worstDay = sortedByApproved[sortedByApproved.length - 1]?.dayName || 'N/A';
 
+    // Detect if this is a comparison query and build separate period data
+    const compMonthNames: Record<string, number> = {
+      'janeiro': 0, 'fevereiro': 1, 'marco': 2, 'abril': 3, 'maio': 4, 'junho': 5,
+      'julho': 6, 'agosto': 7, 'setembro': 8, 'outubro': 9, 'novembro': 10, 'dezembro': 11
+    };
+
+    const normalizedForComparison = query.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const foundMonthsForComparison: number[] = [];
+    for (const [monthName, monthIndex] of Object.entries(compMonthNames)) {
+      if (normalizedForComparison.includes(monthName)) {
+        foundMonthsForComparison.push(monthIndex);
+      }
+    }
+
+    let comparisonPeriod: FullContext['comparisonPeriod'];
+    if (foundMonthsForComparison.length >= 2) {
+      foundMonthsForComparison.sort((a, b) => a - b);
+      const year = now.getFullYear();
+      // Second period = second month
+      const period2Start = new Date(year, foundMonthsForComparison[1], 1, 0, 0, 0);
+      const period2End = new Date(year, foundMonthsForComparison[1] + 1, 0, 23, 59, 59);
+
+      const [period2Stats, period2Daily] = await Promise.all([
+        this.getPeriodStats(userId, period2Start, period2End),
+        this.getDailySales(userId, period2Start, period2End),
+      ]);
+
+      comparisonPeriod = {
+        startDate: period2Start.toISOString().split('T')[0],
+        endDate: period2End.toISOString().split('T')[0],
+        stats: period2Stats,
+        dailySales: period2Daily,
+      };
+    }
+
     return {
       requestedPeriod: {
         startDate: startDate.toISOString().split('T')[0],
@@ -402,6 +467,7 @@ export class OpenAIService {
       dayOfWeekPatterns,
       bestDay,
       worstDay,
+      comparisonPeriod,
     };
   }
 
@@ -466,6 +532,32 @@ export class OpenAIService {
         .map(d => `  • ${d.dayName}: ${d.totalSales} vendas (${d.approvedSales} aprovadas), ${this.formatCurrency(d.revenue)}`)
         .join('\n');
 
+      // Build comparison period section if available
+      let comparisonSection = '';
+      if (context.comparisonPeriod) {
+        const cp = context.comparisonPeriod;
+        const cpDailySalesText = cp.dailySales.length > 0
+          ? cp.dailySales
+              .map(d => `  - ${this.formatDate(d.date)}: ${d.total} vendas (${d.approved} aprovadas), ${this.formatCurrency(d.revenue)}`)
+              .join('\n')
+          : '  Nenhuma venda no período.';
+
+        comparisonSection = `
+═══════════════════════════════════════════════════════════════
+📊 PERÍODO COMPARATIVO: ${this.formatDate(cp.startDate)} até ${this.formatDate(cp.endDate)}
+═══════════════════════════════════════════════════════════════
+
+📈 RESUMO DO PERÍODO COMPARATIVO:
+  • Total de vendas: ${cp.stats.total}
+  • Vendas aprovadas: ${cp.stats.approved}
+  • Vendas pendentes: ${cp.stats.pending}
+  • Vendas canceladas: ${cp.stats.canceled}
+  • Faturamento total: ${this.formatCurrency(cp.stats.revenue)}
+
+📅 VENDAS DIÁRIAS DO PERÍODO COMPARATIVO (${cp.dailySales.length} dias):
+${cpDailySalesText}`;
+      }
+
       const systemPrompt = `Você é um assistente de análise de dados de vendas especializado.
 Você tem acesso aos dados REAIS do banco de dados do usuário.
 IMPORTANTE: Use SOMENTE os dados fornecidos abaixo para responder. NÃO invente números.
@@ -515,6 +607,7 @@ ${dayOfWeekText}
   • Vendas: ${context.comparison.thisMonth.total} (${context.comparison.thisMonth.approved} aprovadas)
   • Faturamento: ${this.formatCurrency(context.comparison.thisMonth.revenue)}
 
+${comparisonSection}
 ${customContext ? `\n═══════════════════════════════════════════════════════════════\n📝 CONTEXTO ADICIONAL:\n${customContext}\n` : ''}
 
 ═══════════════════════════════════════════════════════════════

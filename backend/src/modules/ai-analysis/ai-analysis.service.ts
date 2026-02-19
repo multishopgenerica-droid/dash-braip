@@ -3,6 +3,7 @@ import { prisma } from '../../config/database';
 import { getPaginationParams, createPaginatedResult, PaginatedResult } from '../../shared/utils/pagination';
 import { AppError } from '../../shared/middlewares/error.middleware';
 import { CreateAiAnalysisDTO, UpdateAiAnalysisDTO, AiAnalysisQueryDTO } from './ai-analysis.dto';
+import { openAIService } from '../openai/openai.service';
 
 export async function listAiAnalyses(
   userId: string,
@@ -124,9 +125,14 @@ export async function processAiAnalysis(
   });
 
   try {
-    // Here you would integrate with an AI service (OpenAI, Claude, etc.)
-    // For now, we'll generate a placeholder response based on the type
-    const result = await generateAnalysisResult(analysis, userId);
+    // Try OpenAI first, fallback to static template
+    const aiResult = await openAIService.analyzeData(userId, analysis.prompt);
+    let result: string;
+    if (aiResult.success && aiResult.analysis) {
+      result = aiResult.analysis;
+    } else {
+      result = await generateAnalysisResult(analysis, userId);
+    }
 
     const updatedAnalysis = await prisma.aiAnalysis.update({
       where: { id: analysisId },

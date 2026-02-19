@@ -11,6 +11,6 @@ router.get('/:id', aiAnalysisController.getAiAnalysisById);
 router.post('/', aiAnalysisController.createAiAnalysis);
 router.put('/:id', aiAnalysisController.updateAiAnalysis);
 router.delete('/:id', aiAnalysisController.deleteAiAnalysis);
-router.post('/:id/process', aiAnalysisController.processAiAnalysis);
+router.post('/:id/execute', aiAnalysisController.processAiAnalysis);
 
 export default router;
