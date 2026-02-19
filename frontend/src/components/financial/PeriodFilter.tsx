@@ -168,19 +168,21 @@ export function PeriodFilter({ value, onChange }: PeriodFilterProps) {
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors"
+        className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors whitespace-nowrap"
       >
-        <Calendar className="h-4 w-4" />
-        <span>{value.label}</span>
-        <span className="text-zinc-500">|</span>
-        <span className="text-zinc-400 text-xs">{periodDisplay}</span>
-        <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <Calendar className="h-4 w-4 flex-shrink-0" />
+        <span className="truncate max-w-[120px]">{value.label}</span>
+        <ChevronDown className={`h-4 w-4 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute right-0 top-full mt-2 z-50 w-80 rounded-xl border border-zinc-700 bg-zinc-800 p-4 shadow-xl">
+          <div className="absolute right-0 top-full mt-2 z-50 w-80 rounded-xl border border-zinc-600 bg-zinc-800 p-4 shadow-2xl shadow-black/50">
+            <div className="mb-3 flex items-center justify-between rounded-lg bg-zinc-700/50 px-3 py-2">
+              <span className="text-xs text-zinc-400">Período selecionado</span>
+              <span className="text-xs font-medium text-white">{periodDisplay}</span>
+            </div>
             <div className="grid grid-cols-2 gap-2 mb-4">
               {presets.map((preset) => (
                 <button
