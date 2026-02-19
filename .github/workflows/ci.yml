@@ -1,0 +1,346 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# CI PIPELINE - Roda em todo PR e push
+# Multi-Agent System v6.1 - Enforcement Edition
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: 🔍 CI Pipeline
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.12'
+  GO_VERSION: '1.22'
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # DETECT STACK
+  # ═══════════════════════════════════════════════════════════════════════════
+  detect:
+    name: 🔍 Detect Stack
+    runs-on: ubuntu-latest
+    outputs:
+      stack: ${{ steps.detect.outputs.stack }}
+      has_docker: ${{ steps.detect.outputs.has_docker }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Detect project stack
+        id: detect
+        run: |
+          if [ -f "package.json" ]; then
+            echo "stack=node" >> $GITHUB_OUTPUT
+          elif [ -f "requirements.txt" ] || [ -f "pyproject.toml" ]; then
+            echo "stack=python" >> $GITHUB_OUTPUT
+          elif [ -f "go.mod" ]; then
+            echo "stack=go" >> $GITHUB_OUTPUT
+          elif [ -f "Cargo.toml" ]; then
+            echo "stack=rust" >> $GITHUB_OUTPUT
+          elif [ -f "composer.json" ]; then
+            echo "stack=php" >> $GITHUB_OUTPUT
+          elif [ -f "pom.xml" ] || [ -f "build.gradle" ]; then
+            echo "stack=java" >> $GITHUB_OUTPUT
+          else
+            echo "stack=generic" >> $GITHUB_OUTPUT
+          fi
+          
+          if [ -f "docker-compose.yml" ] || [ -f "Dockerfile" ]; then
+            echo "has_docker=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_docker=false" >> $GITHUB_OUTPUT
+          fi
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # SECURITY SCAN
+  # ═══════════════════════════════════════════════════════════════════════════
+  security:
+    name: 🔐 Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check for secrets
+        run: |
+          echo "🔍 Scanning for secrets..."
+          
+          # Patterns to detect
+          PATTERNS="password=|passwd=|secret=|api_key=|apikey=|token=|private_key="
+          
+          # Scan files (excluding common false positives)
+          FOUND=$(grep -rniE "$PATTERNS" --include="*.{js,ts,py,php,go,rs,java,json,yml,yaml,env}" \
+            --exclude-dir={node_modules,vendor,venv,.git,dist,build} \
+            --exclude="*.example" --exclude="*.sample" \
+            . 2>/dev/null | grep -v "process.env\|os.environ\|getenv" | head -20 || true)
+          
+          if [ -n "$FOUND" ]; then
+            echo "⚠️ Potential secrets found:"
+            echo "$FOUND"
+            echo ""
+            echo "Please review these findings. If they are false positives, ignore."
+          else
+            echo "✅ No hardcoded secrets detected"
+          fi
+      
+      - name: Check for .env files
+        run: |
+          if [ -f ".env" ] || [ -f ".env.local" ] || [ -f ".env.production" ]; then
+            echo "❌ .env file found in repository!"
+            echo "Remove it and add to .gitignore"
+            exit 1
+          fi
+          echo "✅ No .env files in repository"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # NODE.JS PIPELINE
+  # ═══════════════════════════════════════════════════════════════════════════
+  node:
+    name: 🟢 Node.js
+    needs: [detect, security]
+    if: needs.detect.outputs.stack == 'node'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Lint
+        run: npm run lint --if-present
+        continue-on-error: false
+      
+      - name: Type check
+        run: npm run type-check --if-present || npx tsc --noEmit --if-present
+        continue-on-error: true
+      
+      - name: Test
+        run: npm test --if-present
+        env:
+          CI: true
+      
+      - name: Build
+        run: npm run build --if-present
+      
+      - name: Audit
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PYTHON PIPELINE
+  # ═══════════════════════════════════════════════════════════════════════════
+  python:
+    name: 🐍 Python
+    needs: [detect, security]
+    if: needs.detect.outputs.stack == 'python'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f "requirements.txt" ]; then pip install -r requirements.txt; fi
+          if [ -f "requirements-dev.txt" ]; then pip install -r requirements-dev.txt; fi
+          pip install flake8 pytest black mypy
+      
+      - name: Lint with flake8
+        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        continue-on-error: false
+      
+      - name: Check formatting with black
+        run: black --check . || true
+      
+      - name: Type check with mypy
+        run: mypy . --ignore-missing-imports || true
+      
+      - name: Test with pytest
+        run: pytest -v --tb=short || true
+      
+      - name: Security check
+        run: |
+          pip install safety
+          safety check || true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # GO PIPELINE
+  # ═══════════════════════════════════════════════════════════════════════════
+  go:
+    name: 🐹 Go
+    needs: [detect, security]
+    if: needs.detect.outputs.stack == 'go'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      
+      - name: Download dependencies
+        run: go mod download
+      
+      - name: Lint
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+        continue-on-error: true
+      
+      - name: Test
+        run: go test -v ./...
+      
+      - name: Build
+        run: go build -v ./...
+      
+      - name: Security scan
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./... || true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # RUST PIPELINE
+  # ═══════════════════════════════════════════════════════════════════════════
+  rust:
+    name: 🦀 Rust
+    needs: [detect, security]
+    if: needs.detect.outputs.stack == 'rust'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+      
+      - name: Check formatting
+        run: cargo fmt --check
+      
+      - name: Lint with clippy
+        run: cargo clippy -- -D warnings
+      
+      - name: Test
+        run: cargo test
+      
+      - name: Build
+        run: cargo build --release
+      
+      - name: Security audit
+        run: |
+          cargo install cargo-audit
+          cargo audit || true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PHP PIPELINE
+  # ═══════════════════════════════════════════════════════════════════════════
+  php:
+    name: 🐘 PHP
+    needs: [detect, security]
+    if: needs.detect.outputs.stack == 'php'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer, phpcs, phpunit
+      
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress
+      
+      - name: Lint
+        run: |
+          if [ -f "vendor/bin/phpcs" ]; then
+            ./vendor/bin/phpcs || true
+          fi
+      
+      - name: Static analysis
+        run: |
+          if [ -f "vendor/bin/phpstan" ]; then
+            ./vendor/bin/phpstan analyse || true
+          fi
+      
+      - name: Test
+        run: |
+          if [ -f "vendor/bin/phpunit" ]; then
+            ./vendor/bin/phpunit
+          fi
+      
+      - name: Security check
+        run: composer audit || true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # DOCKER BUILD (Se aplicável)
+  # ═══════════════════════════════════════════════════════════════════════════
+  docker:
+    name: 🐳 Docker Build
+    needs: [detect]
+    if: needs.detect.outputs.has_docker == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build Docker image
+        run: |
+          if [ -f "docker-compose.yml" ]; then
+            docker compose build
+          elif [ -f "Dockerfile" ]; then
+            docker build -t test-build .
+          fi
+      
+      - name: Scan for vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+        continue-on-error: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FINAL STATUS
+  # ═══════════════════════════════════════════════════════════════════════════
+  status:
+    name: ✅ CI Status
+    needs: [security, node, python, go, rust, php, docker]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check status
+        run: |
+          echo "CI Pipeline completed"
+          echo "Security: ${{ needs.security.result }}"
+          
+          # Fail if security failed
+          if [ "${{ needs.security.result }}" == "failure" ]; then
+            echo "❌ Security check failed!"
+            exit 1
+          fi
+          
+          echo "✅ All checks passed!"

@@ -4,6 +4,7 @@ import { employeeController } from './controllers/employee.controller';
 import { toolController } from './controllers/tool.controller';
 import { trafficController } from './controllers/traffic.controller';
 import { financialDashboardController } from './controllers/dashboard.controller';
+import { reportController } from './controllers/report.controller';
 import { authMiddleware } from '../auth/auth.middleware';
 
 const router = Router();
@@ -15,6 +16,9 @@ router.use(authMiddleware);
 router.get('/dashboard/macro', (req, res) => financialDashboardController.getMacroView(req, res));
 router.get('/dashboard/trend', (req, res) => financialDashboardController.getMonthlyTrend(req, res));
 router.get('/dashboard/summary', (req, res) => financialDashboardController.getSummaryCards(req, res));
+
+// Report routes
+router.get('/reports/generate', (req, res) => reportController.generate(req, res));
 
 // Expense routes
 router.get('/expenses', (req, res) => expenseController.findAll(req, res));

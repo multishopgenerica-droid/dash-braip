@@ -1,0 +1,59 @@
+{
+  "name": "${localWorkspaceFolderBasename}",
+  "dockerComposeFile": ["../docker-compose.yml", "docker-compose.devcontainer.yml"],
+  "service": "app",
+  "workspaceFolder": "/workspace",
+  
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" },
+    "ghcr.io/devcontainers/features/python:1": { "version": "3.12" },
+    "ghcr.io/devcontainers/features/go:1": { "version": "1.22" },
+    "ghcr.io/devcontainers/features/aws-cli:1": {},
+    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {}
+  },
+  
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "editorconfig.editorconfig",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "bradlc.vscode-tailwindcss",
+        "prisma.prisma",
+        "ms-python.python",
+        "ms-azuretools.vscode-docker",
+        "eamodio.gitlens",
+        "usernamehw.errorlens",
+        "gruntfuggly.todo-tree",
+        "github.copilot"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.codeActionsOnSave": {
+          "source.fixAll.eslint": "explicit",
+          "source.organizeImports": "explicit"
+        },
+        "editor.rulers": [80, 120],
+        "files.autoSave": "onFocusChange",
+        "git.autofetch": true
+      }
+    }
+  },
+  
+  "forwardPorts": [3000, 5432, 6379, 9090, 3001, 16686, 3100],
+  
+  "postCreateCommand": "make setup || npm install || pip install -r requirements.txt 2>/dev/null || true",
+  "postStartCommand": "git config --global --add safe.directory ${containerWorkspaceFolder}",
+  "postAttachCommand": "echo '🚀 Dev container ready! Run: make dev'",
+  
+  "containerEnv": {
+    "NODE_ENV": "development",
+    "LOG_LEVEL": "debug"
+  },
+  
+  "remoteUser": "vscode"
+}

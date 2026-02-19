@@ -1,0 +1,172 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECURITY SCAN - Scan de segurança semanal
+# Multi-Agent System v6.1 - Enforcement Edition
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: 🔐 Security Scan
+
+on:
+  schedule:
+    # Roda toda segunda às 9h
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - '**/package.json'
+      - '**/package-lock.json'
+      - '**/requirements.txt'
+      - '**/Cargo.toml'
+      - '**/go.mod'
+      - '**/composer.json'
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # DEPENDENCY SCAN
+  # ═══════════════════════════════════════════════════════════════════════════
+  dependencies:
+    name: 📦 Dependency Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Node.js audit
+        if: hashFiles('package.json') != ''
+        run: |
+          echo "🔍 Scanning Node.js dependencies..."
+          npm audit --audit-level=moderate || true
+      
+      - name: Python safety check
+        if: hashFiles('requirements.txt') != '' || hashFiles('pyproject.toml') != ''
+        run: |
+          echo "🔍 Scanning Python dependencies..."
+          pip install safety
+          safety check -r requirements.txt || true
+      
+      - name: Go vulnerability check
+        if: hashFiles('go.mod') != ''
+        run: |
+          echo "🔍 Scanning Go dependencies..."
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./... || true
+      
+      - name: Rust audit
+        if: hashFiles('Cargo.toml') != ''
+        run: |
+          echo "🔍 Scanning Rust dependencies..."
+          cargo install cargo-audit
+          cargo audit || true
+      
+      - name: PHP audit
+        if: hashFiles('composer.json') != ''
+        run: |
+          echo "🔍 Scanning PHP dependencies..."
+          composer audit || true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CODE SCANNING
+  # ═══════════════════════════════════════════════════════════════════════════
+  codeql:
+    name: 🔬 CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript, python, go
+      
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+      
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # SECRET SCANNING
+  # ═══════════════════════════════════════════════════════════════════════════
+  secrets:
+    name: 🔑 Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Scan for secrets with Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Custom secret patterns
+        run: |
+          echo "🔍 Scanning for custom secret patterns..."
+          
+          # Check for hardcoded credentials
+          if grep -rniE "(password|secret|api_key|token)\s*[:=]\s*['\"][^'\"]{8,}" \
+            --include="*.{js,ts,py,php,go,rs,java}" \
+            --exclude-dir={node_modules,vendor,venv,.git} . 2>/dev/null | \
+            grep -v "process.env\|os.environ\|getenv"; then
+            echo "⚠️ Potential hardcoded secrets found!"
+          else
+            echo "✅ No obvious hardcoded secrets"
+          fi
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CONTAINER SCANNING
+  # ═══════════════════════════════════════════════════════════════════════════
+  container:
+    name: 🐳 Container Scan
+    runs-on: ubuntu-latest
+    if: hashFiles('Dockerfile') != '' || hashFiles('docker-compose.yml') != ''
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Build image for scanning
+        run: |
+          if [ -f "Dockerfile" ]; then
+            docker build -t scan-target:latest .
+          fi
+      
+      - name: Scan with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'scan-target:latest'
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # REPORT
+  # ═══════════════════════════════════════════════════════════════════════════
+  report:
+    name: 📊 Security Report
+    needs: [dependencies, secrets, container]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate report
+        run: |
+          echo "# 🔐 Security Scan Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Date:** $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Dependencies | ${{ needs.dependencies.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Secrets | ${{ needs.secrets.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Container | ${{ needs.container.result }} |" >> $GITHUB_STEP_SUMMARY
+      
+      - name: Notify Discord on issues
+        if: contains(needs.*.result, 'failure')
+        run: |
+          if [ -n "${{ secrets.DISCORD_WEBHOOK }}" ]; then
+            curl -H "Content-Type: application/json" \
+              -d '{"content":"🚨 **SECURITY ALERT** - Vulnerabilities detected in weekly scan! Check GitHub Actions for details."}' \
+              ${{ secrets.DISCORD_WEBHOOK }} || true
+          fi

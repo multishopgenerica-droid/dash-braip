@@ -1,0 +1,226 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# CI COVERAGE - Pipeline com cobertura de testes obrigatória
+# Multi-Agent System v6.2 - Bulletproof Edition
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: 🧪 CI with Coverage
+
+on:
+  pull_request:
+    branches: [main, master, develop]
+  push:
+    branches: [main, master, develop]
+
+env:
+  MIN_COVERAGE: 80  # Mínimo de 80% de cobertura
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # DETECT STACK
+  # ═══════════════════════════════════════════════════════════════════════════
+  detect:
+    name: 🔍 Detect Stack
+    runs-on: ubuntu-latest
+    outputs:
+      stack: ${{ steps.detect.outputs.stack }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: detect
+        run: |
+          if [ -f "package.json" ]; then echo "stack=node" >> $GITHUB_OUTPUT
+          elif [ -f "requirements.txt" ] || [ -f "pyproject.toml" ]; then echo "stack=python" >> $GITHUB_OUTPUT
+          elif [ -f "go.mod" ]; then echo "stack=go" >> $GITHUB_OUTPUT
+          elif [ -f "Cargo.toml" ]; then echo "stack=rust" >> $GITHUB_OUTPUT
+          elif [ -f "composer.json" ]; then echo "stack=php" >> $GITHUB_OUTPUT
+          else echo "stack=generic" >> $GITHUB_OUTPUT; fi
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # NODE.JS COVERAGE
+  # ═══════════════════════════════════════════════════════════════════════════
+  node-coverage:
+    name: 🟢 Node.js Coverage
+    needs: detect
+    if: needs.detect.outputs.stack == 'node'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run tests with coverage
+        run: |
+          npm test -- --coverage --coverageReporters=json-summary --coverageReporters=text
+        env:
+          CI: true
+      
+      - name: Check coverage threshold
+        run: |
+          if [ -f "coverage/coverage-summary.json" ]; then
+            COVERAGE=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
+            echo "📊 Coverage: ${COVERAGE}%"
+            
+            if (( $(echo "$COVERAGE < $MIN_COVERAGE" | bc -l) )); then
+              echo "❌ Coverage ${COVERAGE}% is below minimum ${MIN_COVERAGE}%"
+              exit 1
+            else
+              echo "✅ Coverage ${COVERAGE}% meets minimum ${MIN_COVERAGE}%"
+            fi
+          else
+            echo "⚠️ Coverage report not found"
+          fi
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          fail_ci_if_error: false
+        continue-on-error: true
+      
+      - name: Coverage Report
+        uses: davelosert/vitest-coverage-report-action@v2
+        if: always()
+        continue-on-error: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PYTHON COVERAGE
+  # ═══════════════════════════════════════════════════════════════════════════
+  python-coverage:
+    name: 🐍 Python Coverage
+    needs: detect
+    if: needs.detect.outputs.stack == 'python'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+      
+      - name: Run tests with coverage
+        run: |
+          pytest --cov=. --cov-report=xml --cov-report=term --cov-fail-under=$MIN_COVERAGE
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        continue-on-error: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # GO COVERAGE
+  # ═══════════════════════════════════════════════════════════════════════════
+  go-coverage:
+    name: 🐹 Go Coverage
+    needs: detect
+    if: needs.detect.outputs.stack == 'go'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      
+      - name: Run tests with coverage
+        run: |
+          go test -v -coverprofile=coverage.out -covermode=atomic ./...
+          go tool cover -func=coverage.out
+      
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | tr -d '%')
+          echo "📊 Coverage: ${COVERAGE}%"
+          
+          if (( $(echo "$COVERAGE < $MIN_COVERAGE" | bc -l) )); then
+            echo "❌ Coverage ${COVERAGE}% is below minimum ${MIN_COVERAGE}%"
+            exit 1
+          fi
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        continue-on-error: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # RUST COVERAGE
+  # ═══════════════════════════════════════════════════════════════════════════
+  rust-coverage:
+    name: 🦀 Rust Coverage
+    needs: detect
+    if: needs.detect.outputs.stack == 'rust'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+      
+      - name: Run tests with coverage
+        run: cargo llvm-cov --all-features --lcov --output-path lcov.info
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: lcov.info
+        continue-on-error: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PHP COVERAGE
+  # ═══════════════════════════════════════════════════════════════════════════
+  php-coverage:
+    name: 🐘 PHP Coverage
+    needs: detect
+    if: needs.detect.outputs.stack == 'php'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: xdebug
+      
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress
+      
+      - name: Run tests with coverage
+        run: |
+          ./vendor/bin/phpunit --coverage-clover coverage.xml --coverage-text
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        continue-on-error: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # COVERAGE BADGE
+  # ═══════════════════════════════════════════════════════════════════════════
+  update-badge:
+    name: 📊 Update Coverage Badge
+    needs: [node-coverage, python-coverage, go-coverage, rust-coverage, php-coverage]
+    if: always() && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Create coverage badge
+        run: |
+          # Badge será gerado pelo Codecov automaticamente
+          echo "Coverage badge available at:"
+          echo "https://codecov.io/gh/${{ github.repository }}"

@@ -1,0 +1,180 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# DEPENDABOT - Atualização automática de dependências
+# Multi-Agent System v6.2 - Bulletproof Edition
+# ═══════════════════════════════════════════════════════════════════════════════
+
+version: 2
+
+registries:
+  npm-registry:
+    type: npm-registry
+    url: https://registry.npmjs.org
+    replaces-base: true
+
+updates:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # NPM / Node.js
+  # ═══════════════════════════════════════════════════════════════════════════
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Sao_Paulo"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "npm"
+      - "automated"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    groups:
+      # Agrupar updates de dev dependencies
+      dev-dependencies:
+        patterns:
+          - "@types/*"
+          - "eslint*"
+          - "prettier*"
+          - "jest*"
+          - "typescript*"
+          - "@testing-library/*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Agrupar updates de produção (minor/patch)
+      production-minor:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "@types/*"
+          - "eslint*"
+          - "prettier*"
+          - "jest*"
+        update-types:
+          - "minor"
+          - "patch"
+    # Ignorar major updates automáticos para libs críticas
+    ignore:
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "next"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "prisma"
+        update-types: ["version-update:semver-major"]
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Python (pip)
+  # ═══════════════════════════════════════════════════════════════════════════
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Sao_Paulo"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+      - "automated"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      python-packages:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Docker
+  # ═══════════════════════════════════════════════════════════════════════════
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+      timezone: "America/Sao_Paulo"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "docker"
+      - "automated"
+    commit-message:
+      prefix: "chore(docker)"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # GitHub Actions
+  # ═══════════════════════════════════════════════════════════════════════════
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+      timezone: "America/Sao_Paulo"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "automated"
+    commit-message:
+      prefix: "chore(ci)"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Go modules
+  # ═══════════════════════════════════════════════════════════════════════════
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Sao_Paulo"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "go"
+      - "automated"
+    commit-message:
+      prefix: "chore(deps)"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Rust (Cargo)
+  # ═══════════════════════════════════════════════════════════════════════════
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Sao_Paulo"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "rust"
+      - "automated"
+    commit-message:
+      prefix: "chore(deps)"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PHP (Composer)
+  # ═══════════════════════════════════════════════════════════════════════════
+  - package-ecosystem: "composer"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Sao_Paulo"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "php"
+      - "automated"
+    commit-message:
+      prefix: "chore(deps)"

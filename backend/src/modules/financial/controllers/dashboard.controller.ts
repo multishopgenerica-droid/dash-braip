@@ -54,7 +54,15 @@ export class FinancialDashboardController {
         return res.status(401).json({ error: 'Não autorizado' });
       }
 
-      const result = await financialDashboardService.getSummaryCards(userId);
+      const { startDate, endDate } = req.query;
+      const parsedStart = startDate ? new Date(startDate as string) : undefined;
+      const parsedEnd = endDate ? new Date(endDate as string) : undefined;
+
+      if ((parsedStart && isNaN(parsedStart.getTime())) || (parsedEnd && isNaN(parsedEnd.getTime()))) {
+        return res.status(400).json({ error: 'Datas inválidas. Use formato ISO 8601.' });
+      }
+
+      const result = await financialDashboardService.getSummaryCards(userId, parsedStart, parsedEnd);
       return res.json(result);
     } catch (error) {
       console.error('Error fetching summary cards:', error);

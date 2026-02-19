@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "Read(*)",
+      "Write(*)",
+      "Edit(*)",
+      "Glob(*)",
+      "Grep(*)",
+      "WebFetch(*)",
+      "WebSearch(*)",
+      "Task(*)",
+      "TaskCreate(*)",
+      "TaskUpdate(*)",
+      "TaskList(*)",
+      "TaskGet(*)",
+      "TeamCreate(*)",
+      "SendMessage(*)",
+      "NotebookEdit(*)",
+      "mcp__n8n-mcp__*",
+      "mcp__ai-context__*",
+      "mcp__playwright__*"
+    ],
+    "deny": []
+  }
+}

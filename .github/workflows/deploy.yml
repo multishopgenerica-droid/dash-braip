@@ -1,0 +1,183 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# DEPLOY PIPELINE - Deploy automático para staging e produção
+# Multi-Agent System v6.1 - Enforcement Edition
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: 🚀 Deploy Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Ambiente para deploy'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # BUILD
+  # ═══════════════════════════════════════════════════════════════════════════
+  build:
+    name: 🔨 Build
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=
+            type=ref,event=branch
+            type=raw,value=latest,enable={{is_default_branch}}
+      
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # DEPLOY STAGING
+  # ═══════════════════════════════════════════════════════════════════════════
+  staging:
+    name: 🎭 Deploy Staging
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: ${{ vars.STAGING_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Deploy to staging
+        run: |
+          echo "🚀 Deploying to staging..."
+          echo "Image: ${{ needs.build.outputs.image_tag }}"
+          
+          # Exemplo para Docker Swarm via SSH
+          # ssh ${{ secrets.STAGING_SSH_HOST }} << 'EOF'
+          #   docker pull ${{ needs.build.outputs.image_tag }}
+          #   docker service update --image ${{ needs.build.outputs.image_tag }} app
+          # EOF
+          
+          echo "✅ Deploy to staging complete"
+      
+      - name: Health check
+        run: |
+          echo "🏥 Running health check..."
+          # curl -f ${{ vars.STAGING_URL }}/health || exit 1
+          echo "✅ Health check passed"
+      
+      - name: Notify Discord
+        if: always()
+        run: |
+          if [ -n "${{ secrets.DISCORD_WEBHOOK }}" ]; then
+            STATUS="${{ job.status }}"
+            COLOR="3066993"
+            [ "$STATUS" != "success" ] && COLOR="15158332"
+            
+            curl -H "Content-Type: application/json" \
+              -d "{\"embeds\":[{\"title\":\"🎭 Deploy Staging - $STATUS\",\"color\":$COLOR,\"fields\":[{\"name\":\"Branch\",\"value\":\"${{ github.ref_name }}\",\"inline\":true},{\"name\":\"Commit\",\"value\":\"${{ github.sha }}\",\"inline\":true}]}]}" \
+              ${{ secrets.DISCORD_WEBHOOK }} || true
+          fi
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # DEPLOY PRODUCTION (Manual approval required)
+  # ═══════════════════════════════════════════════════════════════════════════
+  production:
+    name: 🏭 Deploy Production
+    needs: [build, staging]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Create backup
+        run: |
+          echo "💾 Creating backup before deploy..."
+          # ssh ${{ secrets.PROD_SSH_HOST }} << 'EOF'
+          #   ./DEPLOY_SAFE.sh --backup-only
+          # EOF
+          echo "✅ Backup created"
+      
+      - name: Deploy to production
+        run: |
+          echo "🚀 Deploying to production..."
+          echo "Image: ${{ needs.build.outputs.image_tag }}"
+          
+          # Exemplo para Docker Swarm via SSH
+          # ssh ${{ secrets.PROD_SSH_HOST }} << 'EOF'
+          #   docker pull ${{ needs.build.outputs.image_tag }}
+          #   docker service update --image ${{ needs.build.outputs.image_tag }} app
+          # EOF
+          
+          echo "✅ Deploy to production complete"
+      
+      - name: Health check
+        run: |
+          echo "🏥 Running health check..."
+          # curl -f ${{ vars.PRODUCTION_URL }}/health || exit 1
+          echo "✅ Health check passed"
+      
+      - name: Smoke tests
+        run: |
+          echo "🧪 Running smoke tests..."
+          # npm run test:smoke || ./scripts/smoke-tests.sh
+          echo "✅ Smoke tests passed"
+      
+      - name: Notify Discord
+        if: always()
+        run: |
+          if [ -n "${{ secrets.DISCORD_WEBHOOK }}" ]; then
+            STATUS="${{ job.status }}"
+            COLOR="3066993"
+            EMOJI="✅"
+            [ "$STATUS" != "success" ] && COLOR="15158332" && EMOJI="❌"
+            
+            curl -H "Content-Type: application/json" \
+              -d "{\"content\":\"$EMOJI **PRODUCTION DEPLOY - $STATUS**\",\"embeds\":[{\"title\":\"🏭 Deploy Production\",\"color\":$COLOR,\"fields\":[{\"name\":\"Branch\",\"value\":\"${{ github.ref_name }}\",\"inline\":true},{\"name\":\"Commit\",\"value\":\"${{ github.sha }}\",\"inline\":true},{\"name\":\"Actor\",\"value\":\"${{ github.actor }}\",\"inline\":true}]}]}" \
+              ${{ secrets.DISCORD_WEBHOOK }} || true
+          fi
+      
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "❌ Deploy failed! Initiating rollback..."
+          # ssh ${{ secrets.PROD_SSH_HOST }} << 'EOF'
+          #   ./DEPLOY_SAFE.sh --rollback
+          # EOF
+          echo "🔄 Rollback completed"

@@ -1,0 +1,69 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# VALIDADOR DE CONVENTIONAL COMMITS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+commit_msg=$(cat "$1")
+
+# Padrão: tipo(escopo): descrição
+# Tipos válidos: feat, fix, docs, style, refactor, test, chore, perf, ci, build, revert
+pattern="^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\([a-zA-Z0-9_-]+\))?(!)?: .{1,100}$"
+
+# Permitir mensagens de merge
+merge_pattern="^Merge "
+
+# Permitir WIP temporário (mas avisar)
+wip_pattern="^(WIP|wip|Wip)"
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+echo "📝 Validando mensagem de commit..."
+
+# Verificar se é merge
+if echo "$commit_msg" | grep -qE "$merge_pattern"; then
+    echo -e "${GREEN}✅ Commit de merge detectado${NC}"
+    exit 0
+fi
+
+# Verificar WIP
+if echo "$commit_msg" | grep -qE "$wip_pattern"; then
+    echo -e "${YELLOW}⚠️  Commit WIP detectado. Lembre-se de fazer squash antes do PR!${NC}"
+    exit 0
+fi
+
+# Validar formato
+if ! echo "$commit_msg" | head -1 | grep -qE "$pattern"; then
+    echo -e "${RED}❌ Mensagem de commit inválida!${NC}"
+    echo ""
+    echo "Formato esperado: tipo(escopo): descrição"
+    echo ""
+    echo "Tipos válidos:"
+    echo "  feat     → Nova funcionalidade"
+    echo "  fix      → Correção de bug"
+    echo "  docs     → Documentação"
+    echo "  style    → Formatação (não altera código)"
+    echo "  refactor → Refatoração"
+    echo "  test     → Testes"
+    echo "  chore    → Manutenção"
+    echo "  perf     → Performance"
+    echo "  ci       → CI/CD"
+    echo "  build    → Build system"
+    echo "  revert   → Reverter commit"
+    echo ""
+    echo "Exemplos válidos:"
+    echo "  feat(auth): add password reset"
+    echo "  fix(api): resolve timeout issue"
+    echo "  docs: update README"
+    echo "  refactor(user)!: change API response format"
+    echo ""
+    echo "Sua mensagem: $commit_msg"
+    exit 1
+fi
+
+echo -e "${GREEN}✅ Mensagem de commit válida${NC}"
+exit 0

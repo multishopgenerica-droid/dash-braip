@@ -1,0 +1,75 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# CRONTAB CONFIGURATION - Multi-Agent System v8.1 Mega
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Para instalar: crontab crontab.example
+# Para editar: crontab -e
+#
+# Formato: minuto hora dia mês dia_semana comando
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Variáveis de ambiente
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+PROJECT_DIR=/path/to/project
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/xxx/xxx
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BACKUPS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Backup diário às 3h da manhã
+0 3 * * * cd $PROJECT_DIR && ./scripts/backup-automated.sh daily >> /var/log/backup-daily.log 2>&1
+
+# Backup semanal domingo às 4h
+0 4 * * 0 cd $PROJECT_DIR && ./scripts/backup-automated.sh weekly >> /var/log/backup-weekly.log 2>&1
+
+# Backup mensal dia 1 às 5h
+0 5 1 * * cd $PROJECT_DIR && ./scripts/backup-automated.sh monthly >> /var/log/backup-monthly.log 2>&1
+
+# Teste de restore mensal dia 15 às 6h
+0 6 15 * * cd $PROJECT_DIR && ./scripts/test-restore.sh >> /var/log/test-restore.log 2>&1
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MANUTENÇÃO
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Verificar espaço em disco a cada 6 horas
+0 */6 * * * cd $PROJECT_DIR && ./scripts/runbooks/check-disk-space.sh 80 true >> /var/log/disk-check.log 2>&1
+
+# Limpar cache toda meia-noite
+0 0 * * * cd $PROJECT_DIR && ./scripts/runbooks/clear-cache.sh all >> /var/log/cache-clear.log 2>&1
+
+# Limpar logs antigos semanalmente
+0 2 * * 0 find /var/log -name "*.log" -mtime +30 -delete
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MONITORAMENTO
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Health check a cada 5 minutos
+*/5 * * * * curl -sf http://localhost:3000/health > /dev/null || cd $PROJECT_DIR && ./scripts/runbooks/restart-service.sh app
+
+# Verificar certificados SSL semanalmente
+0 9 * * 1 echo | openssl s_client -servername example.com -connect example.com:443 2>/dev/null | openssl x509 -noout -dates
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SEGURANÇA
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Scan de segurança semanal (segunda 9h)
+0 9 * * 1 cd $PROJECT_DIR && npm audit --audit-level=high >> /var/log/security-scan.log 2>&1
+
+# Rotacionar secrets mensal (primeiro domingo)
+0 3 1-7 * 0 cd $PROJECT_DIR && ./scripts/rotate-secrets.sh >> /var/log/secrets-rotation.log 2>&1
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# RELATÓRIOS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Relatório diário às 8h
+0 8 * * * cd $PROJECT_DIR && ./scripts/daily-report.sh
+
+# Relatório semanal sexta às 18h
+0 18 * * 5 cd $PROJECT_DIR && ./scripts/weekly-report.sh

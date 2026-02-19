@@ -1,0 +1,143 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# CODEOWNERS - Define quem DEVE aprovar mudanças em cada área
+# Multi-Agent System v6.2 - Bulletproof Edition
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Formato: <padrão> <owners>
+# Owners podem ser: @username, @org/team-name, ou email
+#
+# IMPORTANTE: A última regra que faz match é a que vale!
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DEFAULT - Todo código precisa de pelo menos 1 review
+# ═══════════════════════════════════════════════════════════════════════════════
+*                           @tech-lead
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BACKEND / API
+# ═══════════════════════════════════════════════════════════════════════════════
+/src/api/                   @tech-lead @backend-team
+/src/services/              @tech-lead @backend-team
+/src/controllers/           @tech-lead @backend-team
+/src/routes/                @tech-lead @backend-team
+/src/middlewares/           @tech-lead @backend-team
+/src/utils/                 @backend-team
+/src/lib/                   @backend-team
+/app/                       @tech-lead @backend-team
+/server/                    @tech-lead @backend-team
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FRONTEND
+# ═══════════════════════════════════════════════════════════════════════════════
+/src/components/            @frontend-lead @frontend-team
+/src/pages/                 @frontend-lead @frontend-team
+/src/views/                 @frontend-lead @frontend-team
+/src/hooks/                 @frontend-team
+/src/styles/                @frontend-team
+/src/assets/                @frontend-team
+/public/                    @frontend-team
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DATABASE / MIGRATIONS (CRÍTICO - Requer Tech Lead + DBA)
+# ═══════════════════════════════════════════════════════════════════════════════
+/migrations/                @tech-lead @dba
+/prisma/                    @tech-lead @dba
+/src/database/              @tech-lead @dba
+/src/models/                @tech-lead @backend-team
+/src/entities/              @tech-lead @backend-team
+/drizzle/                   @tech-lead @dba
+/sequelize/                 @tech-lead @dba
+*.sql                       @tech-lead @dba
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# INFRAESTRUTURA (CRÍTICO - Requer DevOps + Tech Lead)
+# ═══════════════════════════════════════════════════════════════════════════════
+/docker/                    @devops @tech-lead
+/docker-compose*.yml        @devops @tech-lead
+/Dockerfile*                @devops @tech-lead
+/.docker/                   @devops @tech-lead
+/k8s/                       @devops @tech-lead
+/kubernetes/                @devops @tech-lead
+/terraform/                 @devops @tech-lead
+/ansible/                   @devops @tech-lead
+/helm/                      @devops @tech-lead
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CI/CD (CRÍTICO - Requer DevOps)
+# ═══════════════════════════════════════════════════════════════════════════════
+/.github/workflows/         @devops @tech-lead
+/.github/actions/           @devops @tech-lead
+/.gitlab-ci.yml             @devops @tech-lead
+/Jenkinsfile                @devops @tech-lead
+/.circleci/                 @devops @tech-lead
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MONITORAMENTO E ALERTAS
+# ═══════════════════════════════════════════════════════════════════════════════
+/monitoring/                @devops @sre-team
+/alerts/                    @devops @sre-team
+/grafana/                   @devops @sre-team
+/prometheus/                @devops @sre-team
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SEGURANÇA (MUITO CRÍTICO)
+# ═══════════════════════════════════════════════════════════════════════════════
+/src/auth/                  @tech-lead @security-team
+/src/security/              @tech-lead @security-team
+/.env.example               @tech-lead @devops
+/secrets/                   @tech-lead @security-team
+**/auth/**                  @tech-lead @security-team
+**/security/**              @tech-lead @security-team
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CONFIGURAÇÕES DO PROJETO
+# ═══════════════════════════════════════════════════════════════════════════════
+package.json                @tech-lead
+package-lock.json           @tech-lead
+yarn.lock                   @tech-lead
+pnpm-lock.yaml              @tech-lead
+requirements.txt            @tech-lead
+pyproject.toml              @tech-lead
+Cargo.toml                  @tech-lead
+go.mod                      @tech-lead
+composer.json               @tech-lead
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DOCUMENTAÇÃO DO MULTI-AGENT
+# ═══════════════════════════════════════════════════════════════════════════════
+CLAUDE.md                   @tech-lead
+BUGS_FIXED.md               @tech-lead @qa-lead
+ERROR_CATALOG.md            @tech-lead
+SYSTEM_MAP.md               @tech-lead
+DEPLOY_CHECKLIST.md         @devops @tech-lead
+SECURITY_SCANNER.md         @security-team @tech-lead
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SCRIPTS CRÍTICOS
+# ═══════════════════════════════════════════════════════════════════════════════
+/scripts/                   @tech-lead @devops
+DEPLOY_SAFE.sh              @devops @tech-lead
+AUTOMATED_REVIEW.sh         @tech-lead
+PRE_DEPLOY_CHECKS.sh        @devops @tech-lead
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TESTES
+# ═══════════════════════════════════════════════════════════════════════════════
+/tests/                     @qa-lead @tech-lead
+/__tests__/                 @qa-lead @tech-lead
+/test/                      @qa-lead @tech-lead
+/spec/                      @qa-lead @tech-lead
+*.test.js                   @qa-lead
+*.test.ts                   @qa-lead
+*.spec.js                   @qa-lead
+*.spec.ts                   @qa-lead
+*_test.go                   @qa-lead
+*_test.py                   @qa-lead
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# GITHUB CONFIGS (MUITO CRÍTICO - Só admin)
+# ═══════════════════════════════════════════════════════════════════════════════
+/.github/CODEOWNERS         @admin @tech-lead
+/.github/dependabot.yml     @admin @devops
+/.github/branch-protection/ @admin

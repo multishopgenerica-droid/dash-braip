@@ -1,0 +1,97 @@
+# Alert Rules
+groups:
+  - name: system
+    rules:
+      # CPU alto
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU alto em {{ $labels.instance }}"
+          description: "CPU acima de 80% por mais de 5 minutos (atual: {{ $value }}%)"
+
+      # CPU crítico
+      - alert: CriticalCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 95
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CPU CRÍTICO em {{ $labels.instance }}"
+          description: "CPU acima de 95%! (atual: {{ $value }}%)"
+
+      # Memória alta
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memória alta em {{ $labels.instance }}"
+          description: "Memória acima de 85% (atual: {{ $value }}%)"
+
+      # Disco cheio
+      - alert: DiskSpaceLow
+        expr: (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"})) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disco quase cheio em {{ $labels.instance }}"
+          description: "Disco {{ $labels.mountpoint }} acima de 85% (atual: {{ $value }}%)"
+
+      # Disco crítico
+      - alert: DiskSpaceCritical
+        expr: (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"})) * 100 > 95
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "DISCO CRÍTICO em {{ $labels.instance }}"
+          description: "Disco {{ $labels.mountpoint }} acima de 95%! (atual: {{ $value }}%)"
+
+  - name: containers
+    rules:
+      # Container reiniciando
+      - alert: ContainerRestarting
+        expr: increase(container_last_seen{name!=""}[5m]) > 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container reiniciando"
+          description: "Container {{ $labels.name }} reiniciou mais de 3 vezes nos últimos 5 minutos"
+
+      # Container parado
+      - alert: ContainerDown
+        expr: absent(container_last_seen{name=~"app|api|web"})
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Container crítico parado!"
+          description: "Container de aplicação não está respondendo"
+
+  - name: application
+    rules:
+      # Alto rate de erros
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Alto índice de erros HTTP"
+          description: "Taxa de erros 5xx acima de 5% (atual: {{ $value | humanizePercentage }})"
+
+      # Latência alta
+      - alert: HighLatency
+        expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latência alta detectada"
+          description: "P99 latência acima de 1s (atual: {{ $value }}s)"

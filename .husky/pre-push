@@ -1,0 +1,155 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "🚀 [PRE-PUSH] Verificação completa antes do push..."
+echo ""
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+ERRORS=0
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 1. VERIFICAR BRANCH DE DESTINO
+# ═══════════════════════════════════════════════════════════════════════════════
+current_branch=$(git branch --show-current)
+echo "📍 Branch atual: $current_branch"
+
+# Bloquear push direto para main/master
+if [ "$current_branch" = "main" ] || [ "$current_branch" = "master" ]; then
+    # Verificar se há proteção de branch
+    echo -e "${YELLOW}⚠️  Push direto para $current_branch!${NC}"
+    echo "   Considere usar uma feature branch e abrir PR."
+    # Não bloqueia, mas avisa
+fi
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 2. RODAR TESTES COMPLETOS
+# ═══════════════════════════════════════════════════════════════════════════════
+echo ""
+echo "🧪 Rodando testes completos..."
+
+if [ -f "package.json" ]; then
+    if grep -q "\"test\":" package.json; then
+        echo "   Executando: npm test"
+        if ! npm test 2>/dev/null; then
+            echo -e "${RED}❌ Testes falharam!${NC}"
+            ERRORS=$((ERRORS + 1))
+        else
+            echo -e "${GREEN}✅ Testes passaram${NC}"
+        fi
+    else
+        echo -e "${YELLOW}⚠️  Script de teste não encontrado em package.json${NC}"
+    fi
+elif [ -f "requirements.txt" ] || [ -f "pyproject.toml" ]; then
+    if command -v pytest &> /dev/null; then
+        echo "   Executando: pytest"
+        if ! pytest 2>/dev/null; then
+            echo -e "${RED}❌ Testes falharam!${NC}"
+            ERRORS=$((ERRORS + 1))
+        else
+            echo -e "${GREEN}✅ Testes passaram${NC}"
+        fi
+    fi
+elif [ -f "go.mod" ]; then
+    echo "   Executando: go test ./..."
+    if ! go test ./... 2>/dev/null; then
+        echo -e "${RED}❌ Testes falharam!${NC}"
+        ERRORS=$((ERRORS + 1))
+    else
+        echo -e "${GREEN}✅ Testes passaram${NC}"
+    fi
+elif [ -f "Cargo.toml" ]; then
+    echo "   Executando: cargo test"
+    if ! cargo test 2>/dev/null; then
+        echo -e "${RED}❌ Testes falharam!${NC}"
+        ERRORS=$((ERRORS + 1))
+    else
+        echo -e "${GREEN}✅ Testes passaram${NC}"
+    fi
+elif [ -f "composer.json" ]; then
+    if [ -f "vendor/bin/phpunit" ]; then
+        echo "   Executando: phpunit"
+        if ! ./vendor/bin/phpunit 2>/dev/null; then
+            echo -e "${RED}❌ Testes falharam!${NC}"
+            ERRORS=$((ERRORS + 1))
+        else
+            echo -e "${GREEN}✅ Testes passaram${NC}"
+        fi
+    fi
+else
+    echo -e "${YELLOW}⚠️  Framework de testes não detectado${NC}"
+fi
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 3. VERIFICAR BUILD (se aplicável)
+# ═══════════════════════════════════════════════════════════════════════════════
+echo ""
+echo "🔨 Verificando build..."
+
+if [ -f "package.json" ]; then
+    if grep -q "\"build\":" package.json; then
+        echo "   Executando: npm run build"
+        if ! npm run build 2>/dev/null; then
+            echo -e "${RED}❌ Build falhou!${NC}"
+            ERRORS=$((ERRORS + 1))
+        else
+            echo -e "${GREEN}✅ Build passou${NC}"
+        fi
+    fi
+elif [ -f "Cargo.toml" ]; then
+    echo "   Executando: cargo build"
+    if ! cargo build 2>/dev/null; then
+        echo -e "${RED}❌ Build falhou!${NC}"
+        ERRORS=$((ERRORS + 1))
+    else
+        echo -e "${GREEN}✅ Build passou${NC}"
+    fi
+elif [ -f "go.mod" ]; then
+    echo "   Executando: go build"
+    if ! go build ./... 2>/dev/null; then
+        echo -e "${RED}❌ Build falhou!${NC}"
+        ERRORS=$((ERRORS + 1))
+    else
+        echo -e "${GREEN}✅ Build passou${NC}"
+    fi
+else
+    echo -e "${GREEN}✅ Build não aplicável${NC}"
+fi
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 4. RODAR AUTOMATED_REVIEW.sh (Se existir)
+# ═══════════════════════════════════════════════════════════════════════════════
+echo ""
+echo "🔍 Verificando com AUTOMATED_REVIEW.sh..."
+
+if [ -f "AUTOMATED_REVIEW.sh" ]; then
+    echo "   Executando review automatizado..."
+    if ! ./AUTOMATED_REVIEW.sh --ci 2>/dev/null; then
+        echo -e "${YELLOW}⚠️  AUTOMATED_REVIEW.sh encontrou avisos${NC}"
+        # Não bloqueia, só avisa
+    else
+        echo -e "${GREEN}✅ Review passou${NC}"
+    fi
+else
+    echo -e "${YELLOW}⚠️  AUTOMATED_REVIEW.sh não encontrado${NC}"
+fi
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# RESULTADO FINAL
+# ═══════════════════════════════════════════════════════════════════════════════
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if [ $ERRORS -gt 0 ]; then
+    echo -e "${RED}❌ PRE-PUSH FALHOU! $ERRORS erro(s) encontrado(s).${NC}"
+    echo ""
+    echo "Corrija os erros antes de fazer push."
+    echo "Para bypass em emergência (NÃO RECOMENDADO): git push --no-verify"
+    exit 1
+else
+    echo -e "${GREEN}✅ PRE-PUSH PASSOU! Código pronto para push.${NC}"
+    exit 0
+fi

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { financialService, formatCurrency, MacroView, MonthlyTrend, SummaryCards } from '@/services/financial.service';
 import {
@@ -12,7 +13,10 @@ import {
   Target,
   ArrowUpRight,
   ArrowDownRight,
+  Download,
+  Loader2,
 } from 'lucide-react';
+import { PeriodFilter, getDefaultPeriod, PeriodValue } from '@/components/financial/PeriodFilter';
 
 function StatCard({
   title,
@@ -149,9 +153,12 @@ function TrendChart({ trends }: { trends: MonthlyTrend[] }) {
 }
 
 export default function FinanceiroPage() {
+  const [period, setPeriod] = useState<PeriodValue>(getDefaultPeriod);
+  const [isExporting, setIsExporting] = useState(false);
+
   const { data: macroView, isLoading: loadingMacro, isError: errorMacro } = useQuery({
-    queryKey: ['financial', 'macro'],
-    queryFn: () => financialService.getMacroView(),
+    queryKey: ['financial', 'macro', period.startDate, period.endDate],
+    queryFn: () => financialService.getMacroView(period.startDate, period.endDate),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -162,19 +169,58 @@ export default function FinanceiroPage() {
   });
 
   const { data: summary, isLoading: loadingSummary, isError: errorSummary } = useQuery({
-    queryKey: ['financial', 'summary'],
-    queryFn: () => financialService.getSummaryCards(),
+    queryKey: ['financial', 'summary', period.startDate, period.endDate],
+    queryFn: () => financialService.getSummaryCards(period.startDate, period.endDate),
     staleTime: 5 * 60 * 1000,
   });
+
+  const handleExportReport = async (type: 'summary' | 'detailed' = 'detailed') => {
+    setIsExporting(true);
+    try {
+      const blob = await financialService.generateReport({
+        type,
+        startDate: period.startDate,
+        endDate: period.endDate,
+        format: 'csv',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `relatorio-financeiro-${type}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Erro ao gerar relatório:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const profitMargin = macroView ? (Number(macroView.profit.margin) || 0) : 0;
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">Financeiro</h1>
           <p className="text-zinc-400">Visão macro da operação</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <PeriodFilter value={period} onChange={setPeriod} />
+          <button
+            onClick={() => handleExportReport('detailed')}
+            disabled={isExporting}
+            className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700 hover:text-white disabled:opacity-50 transition-colors"
+          >
+            {isExporting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
+            Relatório
+          </button>
         </div>
       </div>
 

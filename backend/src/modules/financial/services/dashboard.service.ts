@@ -166,16 +166,21 @@ export class FinancialDashboardService {
     return trends;
   }
 
-  async getSummaryCards(userId: string) {
+  async getSummaryCards(userId: string, startDate?: Date, endDate?: Date) {
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    const startOfMonth = startDate || new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = endDate || new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
-    // Count active items
     const [activeEmployees, activeTools, pendingExpenses, totalTrafficSpend] = await Promise.all([
       prisma.employee.count({ where: { userId, status: 'ATIVO' } }),
       prisma.tool.count({ where: { userId, isActive: true } }),
-      prisma.expense.count({ where: { userId, status: 'PENDENTE' } }),
+      prisma.expense.count({
+        where: {
+          userId,
+          status: 'PENDENTE',
+          dueDate: { gte: startOfMonth, lte: endOfMonth },
+        },
+      }),
       prisma.trafficSpend.aggregate({
         where: { userId, date: { gte: startOfMonth, lte: endOfMonth } },
         _sum: { spend: true },

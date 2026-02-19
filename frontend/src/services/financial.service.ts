@@ -285,8 +285,29 @@ export const financialService = {
     return response.data;
   },
 
-  getSummaryCards: async (): Promise<SummaryCards> => {
-    const response = await api.get('/api/financial/dashboard/summary');
+  getSummaryCards: async (startDate?: string, endDate?: string): Promise<SummaryCards> => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const response = await api.get(`/api/financial/dashboard/summary${query}`);
+    return response.data;
+  },
+
+  generateReport: async (options: {
+    type: 'summary' | 'detailed' | 'expenses' | 'traffic';
+    startDate?: string;
+    endDate?: string;
+    format: 'csv' | 'json';
+  }): Promise<Blob> => {
+    const params = new URLSearchParams();
+    params.append('type', options.type);
+    params.append('format', options.format);
+    if (options.startDate) params.append('startDate', options.startDate);
+    if (options.endDate) params.append('endDate', options.endDate);
+    const response = await api.get(`/api/financial/reports/generate?${params.toString()}`, {
+      responseType: 'blob',
+    });
     return response.data;
   },
 
